@@ -18,10 +18,13 @@ _Practice with english words or real code snippets. No browser, no account, ever
 - **Two Modes:** Practice standard English words or real-world code snippets.
 - **Curated Lessons:** Hand-written, topic-based code exercises across multiple languages.
 - **Dynamic Themes:** Cycle between multiple aesthetic terminal themes (`ctrl+t`).
+- **Bot Racing:** Race against 1-5 customizable AI bots that adapt to your speed (`ctrl+b`).
+- **Multiplayer Racing:** Compete with others in real-time via the built-in race server (`ctrl+n`).
 - **Live Metrics:** Real-time WPM speed and accuracy tracking.
 - **Error Review:** See exactly which words you mistyped after every test.
 - **Ranks:** Automated progression system based on your typing speed.
-- **Offline & Local:** No browser, no account, zero telemetry.
+- **Offline & Local:** No browser, no account, and zero tracking. All data stays on your machine (except for real-time stats shared during multiplayer races).
+- **Data Collection in multiplayer:** While playing multiplayer, to make sure you have a smooth experience, we collect only the username, IP address (required for preventing multiple multiplayer sessions for the same user), room size choice, progress and your WPM. We DO NOT collect history, PBs, config, keystrokes, or anything except the above listed. Our commitment to privacy is absolute.  
 
 <p align="center">
   <img src="assets/code-snippets-grid.png" width="48%" title="Real Code Snippets" alt="Real Code Snippets" />
