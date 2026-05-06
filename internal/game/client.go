@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const DefaultServerURL = "http://toofan-race-server.fxtun.dev"
+const DefaultServerURL = "http://toofan-race.pikapp.in"
 
 type ServerMsg struct {
 	Type    string          `json:"type"`
