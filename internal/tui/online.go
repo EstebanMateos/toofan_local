@@ -14,21 +14,34 @@ import (
 
 const (
 	onlineOff        = 0
-	onlineSizePick   = 1
-	onlineUsername   = 2
-	onlineConnecting = 3
-	onlineLobby      = 4
-	onlineCountdown  = 5
-	onlineRacing     = 6
-	onlineResults    = 7
+	onlineActionPick = 1
+	onlineSizePick   = 2
+	onlineRoomIDInput = 3
+	onlinePinInput    = 4
+	onlineUsername   = 5
+	onlineConnecting = 6
+	onlineLobby      = 7
+	onlineCountdown  = 8
+	onlineRacing     = 9
+	onlineResults    = 10
+	onlineConfigPick = 11
 )
 
 var onlineSizes = []int{2, 3, 4, 5, 6}
+var onlineActions = []string{"Join Room", "Create Room"}
 
 func (m model) handleOnline(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.raceState {
-	case onlineOff, onlineSizePick:
+	case onlineActionPick:
+		return m.handleActionPicker(msg)
+	case onlineSizePick:
 		return m.handleSizePicker(msg)
+	case onlineRoomIDInput:
+		return m.handleRoomIDInput(msg)
+	case onlinePinInput:
+		return m.handlePinInput(msg)
+	case onlineConfigPick:
+		return m.handleConfigPicker(msg)
 	case onlineUsername:
 		return m.handleUsernameInput(msg)
 	case onlineLobby, onlineCountdown:
@@ -45,6 +58,30 @@ func (m model) handleOnline(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m model) handleActionPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		if m.onlineActionCur > 0 {
+			m.onlineActionCur--
+		}
+	case "down", "j":
+		if m.onlineActionCur < len(onlineActions)-1 {
+			m.onlineActionCur++
+		}
+	case "enter":
+		m.isCreating = (m.onlineActionCur == 1)
+		if m.isCreating {
+			m.raceState = onlinePinInput
+		} else {
+			m.raceState = onlineRoomIDInput
+		}
+	case "esc":
+		m.pickingOnline = false
+		m.raceState = onlineOff
+	}
+	return m, nil
+}
+
 func (m model) handleSizePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k":
@@ -57,10 +94,114 @@ func (m model) handleSizePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "enter":
 		m.onlineSize = onlineSizes[m.onlineSizeCur]
-		m.raceState = onlineUsername
+		m.raceState = onlineConfigPick
+		m.onlineConfigCur = 0
 	case "esc":
-		m.pickingOnline = false
-		m.raceState = onlineOff
+		m.raceState = onlinePinInput
+	}
+	return m, nil
+}
+
+func (m model) getOnlineConfigOptions() []string {
+	opts := []string{"Mode"}
+	if m.mode == "code" {
+		opts = append(opts, "Language")
+	}
+	opts = append(opts, "Difficulty", "Duration", "Continue")
+	return opts
+}
+
+func (m model) handleConfigPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	opts := m.getOnlineConfigOptions()
+	switch msg.String() {
+	case "up", "k":
+		if m.onlineConfigCur > 0 {
+			m.onlineConfigCur--
+		}
+	case "down", "j":
+		if m.onlineConfigCur < len(opts)-1 {
+			m.onlineConfigCur++
+		}
+	case "enter":
+		opt := opts[m.onlineConfigCur]
+		switch opt {
+		case "Mode":
+			if m.mode == "words" {
+				m.mode = "code"
+			} else {
+				m.mode = "words"
+			}
+			// Reset cursor if it was on a hidden option
+			if m.onlineConfigCur >= len(m.getOnlineConfigOptions()) {
+				m.onlineConfigCur = len(m.getOnlineConfigOptions()) - 1
+			}
+		case "Language":
+			m.pickingLang = true
+		case "Difficulty":
+			m.pickingDifficulty = true
+		case "Duration":
+			m.duration = nextDur(m.duration)
+		case "Continue":
+			m.raceState = onlineUsername
+		}
+	case "esc":
+		m.raceState = onlineSizePick
+	}
+	return m, nil
+}
+
+func (m model) handleRoomIDInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.raceState = onlineActionPick
+		m.onlineRoomIDBuf = ""
+		return m, nil
+	case "enter":
+		m.onlineRoomID = strings.ToUpper(strings.TrimSpace(m.onlineRoomIDBuf))
+		m.raceState = onlinePinInput
+		return m, nil
+	case "backspace":
+		if len(m.onlineRoomIDBuf) > 0 {
+			m.onlineRoomIDBuf = m.onlineRoomIDBuf[:len(m.onlineRoomIDBuf)-1]
+		}
+	default:
+		for _, r := range msg.Runes {
+			if len(m.onlineRoomIDBuf) < 8 {
+				m.onlineRoomIDBuf += string(r)
+			}
+		}
+	}
+	return m, nil
+}
+
+func (m model) handlePinInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		if m.isCreating {
+			m.raceState = onlineActionPick
+		} else {
+			m.raceState = onlineRoomIDInput
+		}
+		m.onlinePinBuf = ""
+		return m, nil
+	case "enter":
+		m.onlinePin = strings.TrimSpace(m.onlinePinBuf)
+		if m.isCreating {
+			m.raceState = onlineSizePick
+		} else {
+			m.raceState = onlineUsername
+		}
+		return m, nil
+	case "backspace":
+		if len(m.onlinePinBuf) > 0 {
+			m.onlinePinBuf = m.onlinePinBuf[:len(m.onlinePinBuf)-1]
+		}
+	default:
+		for _, r := range msg.Runes {
+			if len(m.onlinePinBuf) < 8 {
+				m.onlinePinBuf += string(r)
+			}
+		}
 	}
 	return m, nil
 }
@@ -68,8 +209,11 @@ func (m model) handleSizePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m model) handleUsernameInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
-		m.pickingOnline = false
-		m.raceState = onlineOff
+		if m.isCreating {
+			m.raceState = onlineConfigPick
+		} else {
+			m.raceState = onlinePinInput
+		}
 		m.usernameBuf = ""
 		return m, nil
 	case "enter":
@@ -90,8 +234,10 @@ func (m model) handleUsernameInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			serverURL = game.DefaultServerURL
 		}
 		m.raceClient = game.NewRaceClient(serverURL, m.username)
-		if err := m.raceClient.Join(m.onlineSize); err != nil {
-			m.message = "connect failed: " + err.Error()
+		
+		err := m.raceClient.Join(m.onlineRoomID, m.onlinePin, m.isCreating, m.onlineSize, m.difficulty, m.mode, m.lang, m.duration)
+		if err != nil {
+			m.message = "failed: " + err.Error()
 			m.msgTime = time.Now()
 			m.pickingOnline = false
 			m.raceState = onlineOff
@@ -123,6 +269,8 @@ func (m *model) disconnectRace() {
 	m.raceState = onlineOff
 	m.racePlayers = nil
 	m.raceText = ""
+	m.onlineRoomIDBuf = ""
+	m.onlinePinBuf = ""
 }
 
 func (m model) listenRaceMsg() tea.Cmd {
@@ -149,7 +297,17 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 		var payload game.LobbyPayload
 		json.Unmarshal(msg.Payload, &payload)
 		m.raceClient.SetRoom(payload.Room)
+		m.onlineRoomID = payload.Room
 		m.onlineCount = payload.Online
+		
+		// sync settings from creator
+		if !m.isCreating {
+			m.difficulty = payload.Difficulty
+			m.mode = payload.Mode
+			m.lang = payload.Lang
+			m.duration = payload.Duration
+		}
+		
 		m.raceState = onlineLobby
 
 	case "countdown":
@@ -161,6 +319,13 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 		var payload game.StartPayload
 		json.Unmarshal(msg.Payload, &payload)
 		m.raceText = payload.Text
+		
+		// sync final settings
+		m.difficulty = payload.Difficulty
+		m.mode = payload.Mode
+		m.lang = payload.Lang
+		m.duration = payload.Duration
+		
 		m.game.Reset(m.mode, m.lang, m.difficulty)
 		m.game.SetText(payload.Text)
 		m.raceState = onlineRacing
@@ -186,6 +351,9 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 		}
 		m.racePlayers = payload.Placements
 		m.raceState = onlineResults
+		m.active = screenResults
+		m.finishedAt = time.Now()
+		return m, nil
 
 	case "online":
 		var payload game.OnlinePayload
@@ -203,8 +371,16 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 
 func (m model) viewOnline(p theme.Palette) string {
 	switch m.raceState {
-	case onlineOff, onlineSizePick:
+	case onlineOff, onlineActionPick:
+		return m.viewActionPicker(p)
+	case onlineSizePick:
 		return m.viewSizePicker(p)
+	case onlineRoomIDInput:
+		return m.viewRoomIDPrompt(p)
+	case onlinePinInput:
+		return m.viewPinPrompt(p)
+	case onlineConfigPick:
+		return m.viewConfig(p)
 	case onlineUsername:
 		return m.viewUsernamePrompt(p)
 	case onlineConnecting:
@@ -219,43 +395,104 @@ func (m model) viewOnline(p theme.Palette) string {
 	return ""
 }
 
-func (m model) viewSizePicker(p theme.Palette) string {
-	labels := make([]string, len(onlineSizes))
-	for i, size := range onlineSizes {
-		labels[i] = fmt.Sprintf("%d players", size)
+func (m model) viewConfig(p theme.Palette) string {
+	dim := lipgloss.NewStyle().Foreground(p.Foreground)
+	hi := lipgloss.NewStyle().Foreground(p.Accent)
+	val := lipgloss.NewStyle().Foreground(p.Typed)
+
+	opts := m.getOnlineConfigOptions()
+
+	var lines []string
+	lines = append(lines, hi.Render("configure room"), "")
+
+	for i, opt := range opts {
+		prefix := "  "
+		style := dim
+		if i == m.onlineConfigCur {
+			prefix = hi.Render("● ")
+			style = val
+		}
+
+		var setting string
+		switch opt {
+		case "Mode":
+			setting = m.mode
+		case "Language":
+			setting = m.lang
+		case "Difficulty":
+			setting = m.difficulty
+		case "Duration":
+			setting = fmt.Sprintf("%ds", m.duration)
+		case "Continue":
+			setting = ""
+		}
+
+		if setting != "" {
+			lines = append(lines, prefix+opt+": "+style.Render(setting))
+		} else {
+			lines = append(lines, prefix+opt)
+		}
 	}
-	return renderList(p, "multiplayer room size", labels, nil, m.onlineSizeCur)
+
+	lines = append(lines, "", dim.Render("↑↓ move · enter toggle/select · esc back"))
+	return lipgloss.JoinVertical(lipgloss.Center, lines...)
 }
 
-func (m model) viewUsernamePrompt(p theme.Palette) string {
+func mInput(p theme.Palette, prompt, value, hint string) string {
 	dim := lipgloss.NewStyle().Foreground(p.Foreground)
 	hi := lipgloss.NewStyle().Foreground(p.Accent)
 	val := lipgloss.NewStyle().Foreground(p.Typed)
 	cur := lipgloss.NewStyle().Foreground(p.Background).Background(p.Cursor)
 
+	var inputLine string
+	if value == "" {
+		inputLine = cur.Render(" ")
+	} else {
+		inputLine = val.Render(value) + cur.Render(" ")
+	}
+
+	lines := []string{
+		hi.Render(prompt),
+		"",
+		dim.Render(hint),
+		"",
+		inputLine,
+		"",
+		dim.Render("enter to continue · esc to go back"),
+	}
+	return lipgloss.JoinVertical(lipgloss.Center, lines...)
+}
+
+func (m model) viewActionPicker(p theme.Palette) string {
+	return renderList(p, "multiplayer", onlineActions, nil, m.onlineActionCur)
+}
+
+func (m model) viewSizePicker(p theme.Palette) string {
+	labels := make([]string, len(onlineSizes))
+	for i, size := range onlineSizes {
+		labels[i] = fmt.Sprintf("%d players", size)
+	}
+	return renderList(p, "room size", labels, nil, m.onlineSizeCur)
+}
+
+func (m model) viewRoomIDPrompt(p theme.Palette) string {
+	return mInput(p, "join room", strings.ToUpper(m.onlineRoomIDBuf), "enter room id (e.g. ABCD)")
+}
+
+func (m model) viewPinPrompt(p theme.Palette) string {
+	label := "room pin"
+	if m.isCreating {
+		label = "create pin (optional)"
+	}
+	return mInput(p, label, m.onlinePinBuf, "enter a pin or leave blank for public")
+}
+
+func (m model) viewUsernamePrompt(p theme.Palette) string {
 	display := m.usernameBuf
 	if m.username != "" && display == "" {
 		display = m.username
 	}
-
-	var inputLine string
-	if display == "" {
-		inputLine = cur.Render(" ")
-	} else {
-		inputLine = val.Render(display) + cur.Render(" ")
-	}
-
-	lines := []string{
-		hi.Render("multiplayer"),
-		"",
-		dim.Render("enter a username (2-16 chars)"),
-		"",
-		inputLine,
-		"",
-		dim.Render("enter to join · esc to cancel"),
-	}
-
-	return lipgloss.JoinVertical(lipgloss.Center, lines...)
+	return mInput(p, "multiplayer", display, "enter a username (2-16 chars)")
 }
 
 func (m model) viewConnecting(p theme.Palette) string {
@@ -274,8 +511,16 @@ func (m model) viewLobby(p theme.Palette) string {
 	hi := lipgloss.NewStyle().Foreground(p.Accent)
 	val := lipgloss.NewStyle().Foreground(p.Typed)
 
+	roomLabel := "room " + hi.Render(m.onlineRoomID)
+	if m.onlinePin != "" {
+		roomLabel += dim.Render(" (private)")
+	}
+
 	lines := []string{
 		hi.Render("lobby"),
+		roomLabel,
+		"",
+		dim.Render(fmt.Sprintf("%s · %s · %s · %ds", m.mode, m.lang, m.difficulty, m.duration)),
 		"",
 		dim.Render("waiting for players..."),
 		"",
@@ -315,15 +560,11 @@ func (m model) viewRaceCountdown(p theme.Palette) string {
 func (m model) viewOnlineResults(p theme.Palette) string {
 	dim := lipgloss.NewStyle().Foreground(p.Foreground)
 	hi := lipgloss.NewStyle().Foreground(p.Accent).Bold(true)
-	val := lipgloss.NewStyle().Foreground(p.Typed)
+
 
 	ordinals := []string{"", "1st", "2nd", "3rd", "4th", "5th", "6th"}
 
-	lines := []string{
-		hi.Render("race results"),
-		"",
-	}
-
+	var rows []string
 	for i, pl := range m.racePlayers {
 		ord := ""
 		rank := i + 1
@@ -338,14 +579,19 @@ func (m model) viewOnlineResults(p theme.Palette) string {
 		if pl.IsUser {
 			row = hi.Render(fmt.Sprintf("  %-4s  %-12s  %s", ord, pl.Name, wpmStr)) + hi.Render(" <")
 		} else {
-			row = dim.Render(fmt.Sprintf("  %-4s  ", ord)) + val.Render(fmt.Sprintf("%-12s", pl.Name)) + dim.Render(fmt.Sprintf("  %s", wpmStr))
+			colorIdx := stringToColorIndex(pl.Name)
+			playerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(botColorHexes[colorIdx]))
+			row = dim.Render(fmt.Sprintf("  %-4s  ", ord)) + playerStyle.Render(fmt.Sprintf("%-12s", pl.Name)) + dim.Render(fmt.Sprintf("  %s  ", wpmStr))
 		}
-		lines = append(lines, row)
+		rows = append(rows, row)
 	}
 
-	lines = append(lines, "", dim.Render("press any key to continue"))
-
-	return lipgloss.JoinVertical(lipgloss.Center, lines...)
+	return lipgloss.JoinVertical(lipgloss.Center,
+		"",
+		hi.Render("race results"),
+		"",
+		lipgloss.JoinVertical(lipgloss.Left, rows...),
+	)
 }
 
 func viewOnlineRaceBar(p theme.Palette, players []game.RacePlayer, barWidth int) string {
@@ -357,6 +603,26 @@ func viewOnlineRaceBar(p theme.Palette, players []game.RacePlayer, barWidth int)
 	dim := lipgloss.NewStyle().Foreground(p.Foreground)
 	val := lipgloss.NewStyle().Foreground(p.Typed)
 
+	type racer struct {
+		name     string
+		progress float64
+		isUser   bool
+	}
+
+	racers := make([]racer, len(players))
+	for i, pl := range players {
+		racers[i] = racer{name: pl.Name, progress: pl.Progress, isUser: pl.IsUser}
+	}
+
+	// sort descending by progress
+	for i := 0; i < len(racers); i++ {
+		for j := i + 1; j < len(racers); j++ {
+			if racers[j].progress > racers[i].progress {
+				racers[i], racers[j] = racers[j], racers[i]
+			}
+		}
+	}
+
 	nameWidth := 12
 	trackWidth := barWidth - nameWidth - 8
 	if trackWidth < 10 {
@@ -364,22 +630,24 @@ func viewOnlineRaceBar(p theme.Palette, players []game.RacePlayer, barWidth int)
 	}
 
 	var rows []string
-	for _, pl := range players {
-		filled := int(pl.Progress * float64(trackWidth))
+	for _, r := range racers {
+		filled := int(r.progress * float64(trackWidth))
 		if filled > trackWidth {
 			filled = trackWidth
 		}
 		empty := trackWidth - filled
-		pct := fmt.Sprintf("%3.0f%%", pl.Progress*100)
+		pct := fmt.Sprintf("%3.0f%%", r.progress*100)
 
 		var nameStr, barStr, pctStr string
-		if pl.IsUser {
-			nameStr = hi.Render(fmt.Sprintf("%-*s", nameWidth, pl.Name))
+		if r.isUser {
+			nameStr = hi.Render(fmt.Sprintf("%-*s", nameWidth, r.name))
 			barStr = hi.Render(strings.Repeat("━", filled)) + dim.Render(strings.Repeat("─", empty))
 			pctStr = val.Render(pct)
 		} else {
-			nameStr = dim.Render(fmt.Sprintf("%-*s", nameWidth, pl.Name))
-			barStr = dim.Render(strings.Repeat("━", filled)) + dim.Render(strings.Repeat("─", empty))
+			colorIdx := stringToColorIndex(r.name)
+			playerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(botColorHexes[colorIdx]))
+			nameStr = playerStyle.Render(fmt.Sprintf("%-*s", nameWidth, r.name))
+			barStr = playerStyle.Render(strings.Repeat("━", filled)) + dim.Render(strings.Repeat("─", empty))
 			pctStr = dim.Render(pct)
 		}
 

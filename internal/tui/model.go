@@ -74,8 +74,15 @@ type model struct {
 	raceState     int
 	raceText      string
 	onlineCount   int
+	onlineActionCur int
+	onlineRoomID  string
+	onlineRoomIDBuf string
+	onlinePin     string
+	onlinePinBuf  string
 	onlineSizeCur int
 	onlineSize    int
+	onlineConfigCur int
+	isCreating    bool
 	serverURL     string
 	pickingOnline bool
 	username      string
@@ -277,9 +284,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.pickingBots {
 			return m.handleBotPicker(msg)
 		}
-		if m.pickingOnline {
-			return m.handleOnline(msg)
-		}
 		if m.pickingLang {
 			return m.handlePicker(msg)
 		}
@@ -288,6 +292,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.pickingTheme {
 			return m.handleThemePicker(msg)
+		}
+		if m.pickingOnline {
+			return m.handleOnline(msg)
 		}
 
 		switch m.active {
