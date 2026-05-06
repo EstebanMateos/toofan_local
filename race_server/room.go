@@ -1,8 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"sync"
+	"time"
 )
 
 type player struct {
@@ -15,6 +15,7 @@ type player struct {
 
 type room struct {
 	id         string
+	pin        string
 	hub        *hub
 	mu         sync.Mutex
 	players    map[*client]*player
@@ -22,22 +23,23 @@ type room struct {
 	started    bool
 	text       string
 	closed     bool
+	difficulty string
+	mode       string
+	lang       string
+	duration   int
 }
 
-var roomCounter int
-var roomCounterMu sync.Mutex
-
-func newRoom(h *hub, size int) *room {
-	roomCounterMu.Lock()
-	roomCounter++
-	id := fmt.Sprintf("room-%d", roomCounter)
-	roomCounterMu.Unlock()
-
+func newRoom(h *hub, id string, pin string, size int, diff, mode, lang string, dur int) *room {
 	return &room{
 		id:         id,
+		pin:        pin,
 		hub:        h,
 		players:    make(map[*client]*player),
 		maxPlayers: size,
+		difficulty: diff,
+		mode:       mode,
+		lang:       lang,
+		duration:   dur,
 	}
 }
 
@@ -79,9 +81,14 @@ func (r *room) broadcastLobby() {
 	r.broadcast(ServerMsg{
 		Type: "joined",
 		Payload: JoinMsg{
-			Room:    r.id,
-			Players: r.playerNames(),
-			Online:  r.hub.onlineCount(),
+			Room:       r.id,
+			Players:    r.playerNames(),
+			Online:     r.hub.onlineCount(),
+			Difficulty: r.difficulty,
+			Mode:       r.mode,
+			Lang:       r.lang,
+			Duration:   r.duration,
+			IsPrivate:  r.pin != "",
 		},
 	})
 }
@@ -114,11 +121,19 @@ func (r *room) startCountdown() {
 		Payload: CountdownMsg{Seconds: 3},
 	})
 
+	time.Sleep(3 * time.Second)
+
 	r.text = generateText(40)
 
 	r.broadcast(ServerMsg{
 		Type:    "start",
-		Payload: StartMsg{Text: r.text},
+		Payload: StartMsg{
+			Text:       r.text,
+			Difficulty: r.difficulty,
+			Mode:       r.mode,
+			Lang:       r.lang,
+			Duration:   r.duration,
+		},
 	})
 }
 

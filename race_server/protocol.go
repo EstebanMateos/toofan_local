@@ -8,9 +8,14 @@ type ServerMsg struct {
 }
 
 type JoinMsg struct {
-	Room    string   `json:"room"`
-	Players []string `json:"players"`
-	Online  int      `json:"online"`
+	Room       string `json:"room"`
+	Players    []string `json:"players"`
+	Online     int    `json:"online"`
+	Difficulty string `json:"difficulty"`
+	Mode       string `json:"mode"`
+	Lang       string `json:"lang"`
+	Duration   int    `json:"duration"`
+	IsPrivate  bool   `json:"is_private"`
 }
 
 type CountdownMsg struct {
@@ -18,7 +23,11 @@ type CountdownMsg struct {
 }
 
 type StartMsg struct {
-	Text string `json:"text"`
+	Text       string `json:"text"`
+	Difficulty string `json:"difficulty"`
+	Mode       string `json:"mode"`
+	Lang       string `json:"lang"`
+	Duration   int    `json:"duration"`
 }
 
 type PlayerProgress struct {

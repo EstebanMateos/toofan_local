@@ -37,49 +37,6 @@ func (h *hub) onlineCount() int {
 	return len(h.clients)
 }
 
-func (h *hub) findExistingClient(ip string) *client {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	for c := range h.clients {
-		if c.ip == ip {
-			select {
-			case <-c.done:
-				continue
-			default:
-				return c
-			}
-		}
-	}
-	return nil
-}
-
-func (h *hub) findOrCreateRoom(name string, size int, ip string) (*room, *client) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	c := &client{
-		name:   name,
-		ip:     ip,
-		events: make(chan []byte, 64),
-		done:   make(chan struct{}),
-	}
-	h.clients[c] = true
-
-	for _, r := range h.rooms {
-		if !r.started && len(r.players) < r.maxPlayers && r.maxPlayers == size {
-			c.room = r.id
-			r.addPlayer(c)
-			return r, c
-		}
-	}
-
-	r := newRoom(h, size)
-	h.rooms[r.id] = r
-	c.room = r.id
-	r.addPlayer(c)
-	return r, c
-}
-
 func (h *hub) removeClient(c *client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -119,6 +76,16 @@ func (h *hub) getRoom(id string) *room {
 	return h.rooms[id]
 }
 
+func generateRoomID() string {
+	const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	b := make([]byte, 4)
+	for i := range b {
+		b[i] = chars[time.Now().UnixNano()%int64(len(chars))]
+		time.Sleep(1 * time.Nanosecond)
+	}
+	return string(b)
+}
+
 func (h *hub) serveJoin(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	if name == "" {
@@ -130,34 +97,81 @@ func (h *hub) serveJoin(w http.ResponseWriter, r *http.Request) {
 	if ip == "" {
 		ip = r.RemoteAddr
 	}
-	// Extract the first IP if there is a comma-separated list
 	if strings.Contains(ip, ",") {
 		ip = strings.Split(ip, ",")[0]
 	}
-	// Strip port if present
 	if strings.Contains(ip, ":") {
-		// handle IPv6 edge cases or simple host:port
 		lastColon := strings.LastIndex(ip, ":")
 		if lastColon > strings.LastIndex(ip, "]") {
 			ip = ip[:lastColon]
 		}
 	}
 
-	if old := h.findExistingClient(ip); old != nil {
-		log.Printf("kicking stale session for %s (%s)", old.name, ip)
-		h.removeClient(old)
+	roomID := r.URL.Query().Get("room")
+	pin := r.URL.Query().Get("pin")
+	isCreate := r.URL.Query().Get("is_create") == "true"
+
+	h.mu.Lock()
+	var rm *room
+	if isCreate {
+		roomID = generateRoomID()
+		size := 2
+		fmt.Sscanf(r.URL.Query().Get("size"), "%d", &size)
+		dur := 30
+		fmt.Sscanf(r.URL.Query().Get("duration"), "%d", &dur)
+
+		rm = newRoom(h, roomID, pin, size,
+			r.URL.Query().Get("difficulty"),
+			r.URL.Query().Get("mode"),
+			r.URL.Query().Get("lang"),
+			dur)
+		h.rooms[roomID] = rm
+	} else if roomID != "" {
+		rm = h.rooms[roomID]
+		if rm == nil {
+			h.mu.Unlock()
+			http.Error(w, "room not found", http.StatusNotFound)
+			return
+		}
+		if rm.pin != "" && rm.pin != pin {
+			h.mu.Unlock()
+			http.Error(w, "invalid pin", http.StatusForbidden)
+			return
+		}
+		if len(rm.players) >= rm.maxPlayers {
+			h.mu.Unlock()
+			http.Error(w, "room full", http.StatusForbidden)
+			return
+		}
+	} else {
+		// auto-match in public rooms
+		for _, ex := range h.rooms {
+			if !ex.started && ex.pin == "" && len(ex.players) < ex.maxPlayers {
+				rm = ex
+				break
+			}
+		}
+		if rm == nil {
+			roomID = generateRoomID()
+			rm = newRoom(h, roomID, "", 2, "medium", "words", "english", 30)
+			h.rooms[roomID] = rm
+		}
 	}
 
-	sizeStr := r.URL.Query().Get("size")
-	size := 2
-	if sizeStr != "" {
-		fmt.Sscanf(sizeStr, "%d", &size)
+	c := &client{
+		name:   name,
+		ip:     ip,
+		room:   rm.id,
+		events: make(chan []byte, 64),
+		done:   make(chan struct{}),
 	}
-	if size < 2 {
-		size = 2
-	} else if size > 10 {
-		size = 10
-	}
+	h.clients[c] = true
+	h.mu.Unlock()
+
+	rm.addPlayer(c)
+	log.Printf("client %s joined room %s from %s", name, rm.id, ip)
+
+	defer h.removeClient(c)
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -170,24 +184,7 @@ func (h *hub) serveJoin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	rm, c := h.findOrCreateRoom(name, size, ip)
-	log.Printf("client %s joined room %s from %s", name, rm.id, ip)
-
-	defer h.removeClient(c)
-
-	joinMsg := marshal(ServerMsg{
-		Type: "joined",
-		Payload: JoinMsg{
-			Room:    rm.id,
-			Players: rm.playerNames(),
-			Online:  h.onlineCount(),
-		},
-	})
-	fmt.Fprintf(w, "data: %s\n\n", joinMsg)
-	flusher.Flush()
-
 	rm.broadcastLobby()
-
 	rm.maybeStart()
 
 	ctx := r.Context()
