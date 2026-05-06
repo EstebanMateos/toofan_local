@@ -134,11 +134,23 @@ func BotPlacements(bots []Bot, userProgress float64) []BotPlacement {
 
 	placements := make([]BotPlacement, len(entries))
 	for i, e := range entries {
+		wpm := 0.0
+		if e.isUser {
+			// we don't have user wpm here, but it's usually passed or calculated
+		} else {
+			for _, b := range bots {
+				if b.ID == e.id {
+					wpm = b.WPM
+					break
+				}
+			}
+		}
 		placements[i] = BotPlacement{
 			Rank:     i + 1,
 			ID:       e.id,
 			Name:     e.name,
 			Progress: e.progress,
+			WPM:      wpm,
 			IsUser:   e.isUser,
 		}
 	}
@@ -150,6 +162,7 @@ type BotPlacement struct {
 	ID       int
 	Name     string
 	Progress float64
+	WPM      float64
 	IsUser   bool
 }
 
