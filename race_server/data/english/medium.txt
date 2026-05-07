@@ -119,7 +119,6 @@ office
 once
 outside
 paper
-child
 party
 person
 picture
