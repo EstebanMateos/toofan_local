@@ -108,6 +108,22 @@ Everything lives in `~/.config/toofan/` as plain text files:
 <details>
 <summary>Can I backup my data?</summary>
 
+<summary>Does online mode require account?</summary>
+
+<details>
+No. The online mode only requires a username that will uniquely identify you across the server. It does not require any account or registration.
+
+</details>
+<summary>What data is collected in online mode</summary>
+<details>
+Only IP, room size choice, progress, your wpm, and your username is collected during online mode. Each of the above is used to exchange information between clients and the IP is used to log join and leave events. Absolutely no data is stored on our servers.
+</details>
+
+<summary>Does playing against bots require internet connection</summary>
+<details>
+No. All bots are run locally on your machine. Only the multiplayer mode requires an internet connection.
+</details>
+
 Yes. Press `ctrl+s` to save a backup and `ctrl+r` to restore from one. Backups are saved to `~/.config/toofan/backups/` and can be moved between machines.
 
 </details>
@@ -176,6 +192,17 @@ We're always looking to add more. If your favorite programming language isn't su
 - [ ] AUR, Homebrew, Nix packages, Fedora & Ubuntu repos
 - [x] Fix top pane alignment to match bottom panes in profile
 
+## Contributors
+
+- Huge thanks to [@aaravmaloo](https://github.com/aaravmaloo) for creating online mode and fully implementing bots and online mode.
+
+<a href="https://github.com/vyrx-dev/toofan/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=vyrx-dev/toofan" />
+</a>
+
+Made with [contrib.rocks](https://contrib.rocks).
+
+(As a contributor, to get your name to mentions, please create a PR along with the contributions you made.)
 ## Contributing
 
 - New snippets : Drop a file in `internal/lang/data/<language>/lessons/` and rebuild
