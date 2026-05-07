@@ -83,6 +83,10 @@ type model struct {
 	onlineSize    int
 	onlineConfigCur int
 	isCreating    bool
+	onlineAutoStart bool
+	isRaceHost    bool
+	raceHostName  string
+	raceCanStart  bool
 	serverURL     string
 	pickingOnline bool
 	username      string
@@ -102,6 +106,7 @@ func New() model {
 		difficulty: difficulty,
 		username:   username,
 		serverURL:  serverURL,
+		onlineAutoStart: true,
 	}
 }
 
@@ -182,6 +187,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	
 	case joinResultMsg:
 		return m.handleJoinResult(msg)
+	case startRaceResultMsg:
+		return m.handleStartRaceResult(msg)
 
 	case onlineResultsDoneMsg:
 		if m.raceState == onlineResults {

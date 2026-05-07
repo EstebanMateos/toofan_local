@@ -11,6 +11,9 @@ type JoinMsg struct {
 	Room       string   `json:"room"`
 	Players    []string `json:"players"`
 	Online     int      `json:"online"`
+	Host       string   `json:"host"`
+	AutoStart  bool     `json:"auto_start"`
+	CanStart   bool     `json:"can_start"`
 	Difficulty string   `json:"difficulty"`
 	Mode       string   `json:"mode"`
 	Lang       string   `json:"lang"`
@@ -57,6 +60,11 @@ type ProgressUpdate struct {
 	Room     string  `json:"room"`
 	Progress float64 `json:"progress"`
 	WPM      float64 `json:"wpm"`
+}
+
+type StartRequest struct {
+	Name string `json:"name"`
+	Room string `json:"room"`
 }
 
 func marshal(msg ServerMsg) []byte {
