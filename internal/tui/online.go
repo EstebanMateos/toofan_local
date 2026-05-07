@@ -27,6 +27,10 @@ const (
 	onlineConfigPick = 11
 )
 
+type joinResultMsg struct {
+	err error
+}
+
 var onlineSizes = []int{2, 3, 4, 5, 6}
 var onlineActions = []string{"Join Room", "Create Room"}
 
@@ -235,17 +239,7 @@ func (m model) handleUsernameInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.raceClient = game.NewRaceClient(serverURL, m.username)
 		
-		err := m.raceClient.Join(m.onlineRoomID, m.onlinePin, m.isCreating, m.onlineSize, m.difficulty, m.mode, m.lang, m.duration)
-		if err != nil {
-			m.message = "failed: " + err.Error()
-			m.msgTime = time.Now()
-			m.pickingOnline = false
-			m.raceState = onlineOff
-			m.raceClient = nil
-			return m, nil
-		}
-		m.raceState = onlineLobby
-		return m, m.listenRaceMsg()
+		return m, m.joinRaceCmd()
 	case "backspace":
 		if len(m.usernameBuf) > 0 {
 			m.usernameBuf = m.usernameBuf[:len(m.usernameBuf)-1]
@@ -284,6 +278,13 @@ func (m model) listenRaceMsg() tea.Cmd {
 			return raceServerMsg{Msg: game.ServerMsg{Type: "disconnected"}}
 		}
 		return raceServerMsg{Msg: msg}
+	}
+}
+
+func (m model) joinRaceCmd() tea.Cmd {
+	return func() tea.Msg {
+		err := m.raceClient.Join(m.onlineRoomID, m.onlinePin, m.isCreating, m.onlineSize, m.difficulty, m.mode, m.lang, m.duration)
+		return joinResultMsg{err: err}
 	}
 }
 
@@ -378,6 +379,19 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 		return m, nil
 	}
 
+	return m, m.listenRaceMsg()
+}
+
+func (m model) handleJoinResult(msg joinResultMsg) (model, tea.Cmd) {
+	if msg.err != nil {
+		m.message = "failed: " + msg.err.Error()
+		m.msgTime = time.Now()
+		m.pickingOnline = false
+		m.raceState = onlineOff
+		m.raceClient = nil
+		return m, nil
+	}
+	m.raceState = onlineLobby
 	return m, m.listenRaceMsg()
 }
 

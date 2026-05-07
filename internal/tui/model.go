@@ -176,6 +176,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case raceServerMsg:
 		m, cmd := m.handleRaceServerMsg(msg.Msg)
 		return m, cmd
+	
+	case joinResultMsg:
+		return m.handleJoinResult(msg)
 
 	case tea.KeyMsg:
 		if m.message != "" {
