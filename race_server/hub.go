@@ -110,6 +110,7 @@ func (h *hub) serveJoin(w http.ResponseWriter, r *http.Request) {
 	roomID := r.URL.Query().Get("room")
 	pin := r.URL.Query().Get("pin")
 	isCreate := r.URL.Query().Get("is_create") == "true"
+	noRooms := r.URL.Query().Get("no_rooms") == "true"
 
 	h.mu.Lock()
 	var rm *room
@@ -126,6 +127,7 @@ func (h *hub) serveJoin(w http.ResponseWriter, r *http.Request) {
 			r.URL.Query().Get("lang"),
 			dur)
 		h.rooms[roomID] = rm
+		log.Printf("create lobby room=%s owner=%s private=%t", roomID, name, pin != "")
 	} else if roomID != "" {
 		rm = h.rooms[roomID]
 		if rm == nil {
@@ -144,17 +146,27 @@ func (h *hub) serveJoin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// auto-match in public rooms
+		// auto-match in public rooms.
+		// no_rooms=true means queue for random 1v1 only (never join custom-sized rooms).
 		for _, ex := range h.rooms {
-			if !ex.started && ex.pin == "" && len(ex.players) < ex.maxPlayers {
+			if ex.started || ex.pin != "" || len(ex.players) >= ex.maxPlayers {
+				continue
+			}
+			if noRooms && ex.maxPlayers != 2 {
+				continue
+			}
+			if noRooms && (ex.mode != "words" || ex.lang != "english" || ex.difficulty != "medium" || ex.duration != 30) {
+				continue
+			}
 				rm = ex
 				break
-			}
 		}
 		if rm == nil {
 			roomID = generateRoomID()
+			// default quick queue room
 			rm = newRoom(h, roomID, "", 2, "medium", "words", "english", 30)
 			h.rooms[roomID] = rm
+			log.Printf("auto-created queue room=%s no_rooms=%t", roomID, noRooms)
 		}
 	}
 
@@ -169,7 +181,7 @@ func (h *hub) serveJoin(w http.ResponseWriter, r *http.Request) {
 	h.mu.Unlock()
 
 	rm.addPlayer(c)
-	log.Printf("client %s joined room %s from %s", name, rm.id, ip)
+	log.Printf("client %s joined room %s from %s no_rooms=%t", name, rm.id, ip, noRooms)
 
 	defer h.removeClient(c)
 

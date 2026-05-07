@@ -162,6 +162,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 
 					if m.raceState == onlineRacing {
+						if m.raceClient != nil {
+							go m.raceClient.SendProgress(1.0, m.result.WPM)
+						}
 						m.raceState = onlineResults
 					}
 					m.active = screenResults
@@ -179,6 +182,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	
 	case joinResultMsg:
 		return m.handleJoinResult(msg)
+
+	case onlineResultsDoneMsg:
+		if m.raceState == onlineResults {
+			m.disconnectRace()
+			m.game = game.New(m.duration, m.mode, m.lang, m.difficulty)
+			m.active = screenTyping
+		}
+		return m, nil
 
 	case tea.KeyMsg:
 		if m.message != "" {

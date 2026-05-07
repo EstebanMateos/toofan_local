@@ -3,11 +3,13 @@ package main
 import (
 	"embed"
 	"io/fs"
+	"log"
 	"math/rand"
+	"path"
 	"strings"
 )
 
-//go:embed data/**/*
+//go:embed data
 var dataFS embed.FS
 
 type Snippet struct {
@@ -92,22 +94,34 @@ func init() {
 			ld.AllWords = append(ld.AllWords, ld.HardWords...)
 		}
 
-		// Look for snippets directly in the language directory
-		files, _ := fs.ReadDir(dataFS, "data/"+name)
-		for _, f := range files {
-			if f.IsDir() || strings.HasSuffix(f.Name(), ".txt") {
-				continue
+		// Load snippets from both data/<lang>/ and data/<lang>/lessons/.
+		// This matches the app-side content layout.
+		loadSnippets := func(dir string) {
+			files, err := fs.ReadDir(dataFS, dir)
+			if err != nil {
+				return
 			}
-			if raw, err := fs.ReadFile(dataFS, "data/"+name+"/"+f.Name()); err == nil {
+			for _, f := range files {
+				if f.IsDir() || strings.HasSuffix(f.Name(), ".txt") {
+					continue
+				}
+				p := path.Join(dir, f.Name())
+				raw, err := fs.ReadFile(dataFS, p)
+				if err != nil {
+					continue
+				}
 				snips := parseLesson(string(raw))
 				ld.Snippets = append(ld.Snippets, snips...)
 			}
 		}
+		loadSnippets("data/" + name)
+		loadSnippets("data/" + name + "/lessons")
 
 		if len(ld.AllWords) > 0 || len(ld.Snippets) > 0 {
 			languages[name] = ld
 		}
 	}
+	log.Printf("loaded %d languages into race server", len(languages))
 }
 
 func generateText(mode, lang, difficulty string) string {
@@ -116,7 +130,8 @@ func generateText(mode, lang, difficulty string) string {
 		ld = languages["english"]
 	}
 	if ld == nil {
-		return "the quick brown fox jumps over the lazy dog"
+		log.Printf("generateText fallback: no language data for mode=%s lang=%s diff=%s", mode, lang, difficulty)
+		return "hello world"
 	}
 
 	if mode == "code" && len(ld.Snippets) > 0 {
@@ -138,7 +153,8 @@ func generateText(mode, lang, difficulty string) string {
 		pool = ld.AllWords
 	}
 	if len(pool) == 0 {
-		return "the quick brown fox jumps over the lazy dog"
+		log.Printf("generateText fallback: empty word pool for lang=%s diff=%s", lang, difficulty)
+		return "hello world"
 	}
 
 	count := 40

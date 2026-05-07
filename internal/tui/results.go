@@ -41,6 +41,10 @@ func (m model) handleResults(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.raceState == onlineResults {
+		m.disconnectRace()
+	}
+
 	m.game = game.New(m.duration, m.mode, m.lang, m.difficulty)
 	m.showingErrors = false
 	m.bots = nil

@@ -34,6 +34,7 @@ func main() {
 			return
 		}
 
+		log.Printf("progress room=%s name=%s progress=%.3f wpm=%.1f", update.Room, update.Name, update.Progress, update.WPM)
 		rm.updateProgress(update.Name, update.Progress, update.WPM)
 		w.WriteHeader(http.StatusOK)
 	})

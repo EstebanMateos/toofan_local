@@ -31,8 +31,10 @@ type joinResultMsg struct {
 	err error
 }
 
+type onlineResultsDoneMsg struct{}
+
 var onlineSizes = []int{2, 3, 4, 5, 6}
-var onlineActions = []string{"Join Room", "Create Room"}
+var onlineActions = []string{"No Rooms (Quick Match)", "Join Room", "Create Room"}
 
 func (m model) handleOnline(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.raceState {
@@ -73,11 +75,17 @@ func (m model) handleActionPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.onlineActionCur++
 		}
 	case "enter":
-		m.isCreating = (m.onlineActionCur == 1)
+		m.isCreating = (m.onlineActionCur == 2)
+		m.onlineRoomID = ""
+		m.onlineRoomIDBuf = ""
+		m.onlinePin = ""
+		m.onlinePinBuf = ""
 		if m.isCreating {
 			m.raceState = onlinePinInput
-		} else {
+		} else if m.onlineActionCur == 1 {
 			m.raceState = onlineRoomIDInput
+		} else {
+			m.raceState = onlineUsername
 		}
 	case "esc":
 		m.pickingOnline = false
@@ -387,7 +395,7 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 		m.raceState = onlineResults
 		m.active = screenResults
 		m.finishedAt = time.Now()
-		return m, nil
+		return m, tea.Tick(4*time.Second, func(time.Time) tea.Msg { return onlineResultsDoneMsg{} })
 
 	case "online":
 		var payload game.OnlinePayload

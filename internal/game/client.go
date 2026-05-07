@@ -91,6 +91,9 @@ func NewRaceClient(serverURL, username string) *RaceClient {
 
 func (c *RaceClient) Join(roomID, pin string, isCreate bool, size int, difficulty, mode, lang string, duration int) error {
 	url := fmt.Sprintf("%s/race/join?name=%s", c.serverURL, c.name)
+	if !isCreate && roomID == "" {
+		url += "&no_rooms=true"
+	}
 	if roomID != "" {
 		url += "&room=" + roomID
 	}
