@@ -252,6 +252,17 @@ func (m model) viewTyping(p theme.Palette) string {
 
 	// progress bar when typing
 	if m.raceClient != nil && len(m.racePlayers) > 0 {
+		userProg := 0.0
+		if len(m.game.Text()) > 0 {
+			userProg = float64(len(m.game.Input())) / float64(len(m.game.Text()))
+		}
+		// update local player's progress for immediate feedback
+		for i := range m.racePlayers {
+			if m.racePlayers[i].IsUser {
+				m.racePlayers[i].Progress = userProg
+				break
+			}
+		}
 		out = append(out, "", viewOnlineRaceBar(p, m.racePlayers, textWidth-4))
 	} else if len(m.bots) > 0 {
 		userProg := 0.0

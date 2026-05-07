@@ -307,6 +307,14 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 			m.lang = payload.Lang
 			m.duration = payload.Duration
 		}
+
+		m.racePlayers = make([]game.RacePlayer, len(payload.Players))
+		for i, name := range payload.Players {
+			m.racePlayers[i] = game.RacePlayer{
+				Name:   name,
+				IsUser: name == m.username,
+			}
+		}
 		
 		m.raceState = onlineLobby
 
