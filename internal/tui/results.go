@@ -27,6 +27,15 @@ func (m model) handleResults(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.duration = nextDur(m.duration)
 		m.activeRace = nil
 		m.save()
+		m.pickingDur = true
+		m.durCur = 0
+		for i, d := range durations {
+			if d == m.duration {
+				m.durCur = i
+			}
+		}
+		m.active = screenTyping
+		return m, nil
 	case "ctrl+t":
 		theme.Next()
 		m.save()

@@ -19,6 +19,7 @@ func (m model) handleTyping(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.activeRace != nil {
 			m.game.SetText(m.activeRace.Text)
 		}
+		return m, nil
 
 	case "tab":
 		m.pickingDur = true
