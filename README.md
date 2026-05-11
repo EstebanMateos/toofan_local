@@ -29,6 +29,7 @@ _Practice with english words or real code snippets. No browser, no account, ever
 - **Error Review:** See exactly which words you mistyped after every test.
 - **Ranks:** Automated progression system based on your typing speed.
 - **Offline & Local:** No browser, no account, zero telemetry.
+- **Racing:** Race against your own last 10 tests.
 
 <p align="center">
   <img src="assets/code-snippets-grid.png" width="48%" title="Real Code Snippets" alt="Real Code Snippets" />
