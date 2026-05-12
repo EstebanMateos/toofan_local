@@ -2,15 +2,16 @@ package tui
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/vyrx-dev/toofan/internal/game"
 	"github.com/vyrx-dev/toofan/internal/theme"
 )
 
@@ -48,7 +49,7 @@ func loadProfile() profileData {
 	}
 	dataDir := filepath.Join(configDir, "toofan")
 
-	f, err := os.Open(filepath.Join(dataDir, "results.txt"))
+	f, err := os.Open(filepath.Join(dataDir, "results.jsonl"))
 	if err != nil {
 		return pd
 	}
@@ -117,49 +118,25 @@ func avgWPM(tests []testEntry) float64 {
 }
 
 func parseResultLine(line string) (testEntry, bool) {
-	parts := strings.Split(line, "|")
-	if len(parts) < 5 {
+	var rec game.ResultRecord
+	if err := json.Unmarshal([]byte(line), &rec); err != nil {
 		return testEntry{}, false
 	}
 
-	date, err := time.Parse("2006-01-02 15:04", strings.TrimSpace(parts[0]))
+	date, err := time.Parse("2006-01-02 15:04", rec.At)
 	if err != nil {
 		return testEntry{}, false
 	}
 
-	wpmStr := strings.TrimSpace(parts[1])
-	wpmStr = strings.TrimSuffix(wpmStr, "wpm")
-	wpmStr = strings.TrimSpace(wpmStr)
-	wpm, _ := strconv.ParseFloat(wpmStr, 64)
-
-	accStr := strings.TrimSpace(parts[2])
-	accStr = strings.TrimSuffix(accStr, "%")
-	accStr = strings.TrimSpace(accStr)
-	acc, _ := strconv.ParseFloat(accStr, 64)
-
-	durStr := strings.TrimSpace(parts[3])
-	durStr = strings.TrimSuffix(durStr, "s")
-	durStr = strings.TrimSpace(durStr)
-	dur, _ := strconv.Atoi(durStr)
-
-	modeStr := strings.TrimSpace(parts[4])
-
-	var raw float64
-	var errors int
-	if len(parts) >= 6 {
-		rawStr := strings.TrimSpace(parts[5])
-		rawStr = strings.TrimSuffix(rawStr, "raw")
-		rawStr = strings.TrimSpace(rawStr)
-		raw, _ = strconv.ParseFloat(rawStr, 64)
-	}
-	if len(parts) >= 7 {
-		errStr := strings.TrimSpace(parts[6])
-		errStr = strings.TrimSuffix(errStr, "err")
-		errStr = strings.TrimSpace(errStr)
-		errors, _ = strconv.Atoi(errStr)
-	}
-
-	return testEntry{Date: date, WPM: wpm, Dur: dur, Acc: acc, Mode: modeStr, Raw: raw, Errors: errors}, true
+	return testEntry{
+		Date:   date,
+		WPM:    rec.WPM,
+		Dur:    rec.Dur,
+		Acc:    rec.Acc,
+		Mode:   rec.Mode,
+		Raw:    rec.Raw,
+		Errors: rec.Err,
+	}, true
 }
 
 func (m model) handleProfile(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
