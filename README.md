@@ -199,7 +199,7 @@ We're always looking to add more. If your favorite programming language isn't su
 
 ## Contributors
 
-- Huge thanks to [@aaravmaloo](https://github.com/aaravmaloo) for creating online mode and fully implementing bots and online mode.
+- Huge thanks to [@aaravmaloo](https://github.com/aaravmaloo) for creating online mode and implementing AI bots.
 
 (As a contributor, to get your name to mentions, please create a PR along with the contributions you made.)
 ## Contributing
