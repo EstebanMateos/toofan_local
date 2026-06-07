@@ -14,7 +14,7 @@ go run .               # run without building
 go vet ./...           # lint check before committing
 ```
 
-There are no external services, databases, or network calls. User data lives in `~/.config/toofan/` as plain text files.
+There are no external services, databases, or network calls. User data lives in `~/.config/toofan/` as local JSON/JSONL files.
 
 ## Project Structure
 
@@ -96,33 +96,37 @@ Place a `words.txt` inside a language's data directory. One word per line.
 
 ## Data Format
 
-Results are stored in `~/.config/toofan/results.txt`, one test per line:
+Config and PBs are stored together in `~/.config/toofan/config.json`:
 
 ```
-2026-04-01 22:18 |  85 wpm | 97.5% | 30s | words | 83 raw | 2 err
-2026-04-01 22:20 |  54 wpm | 91.0% | 15s | code:go | 60 raw | 5 err
+{
+  "duration": 30,
+  "mode": "words",
+  "lang": "go",
+  "difficulty": "easy",
+  "theme": "tokyonight",
+  "pb": {
+    "words-30": 105,
+    "code-15": 54
+  }
+}
 ```
 
-Config is stored in `~/.config/toofan/config.txt` as key=value pairs:
+Results are stored in `~/.config/toofan/results.jsonl` (JSON Lines, one test per line):
 
 ```
-duration=30
-mode=words
-lang=go
-theme=tokyonight
+{"at":"2026-04-01 22:18","wpm":85,"acc":97.5,"dur":30,"mode":"words","raw":83,"err":2}
+{"at":"2026-04-01 22:20","wpm":54,"acc":91.0,"dur":15,"mode":"code:go","raw":60,"err":5}
 ```
 
-PBs are stored in `~/.config/toofan/pb.txt`:
+Races are stored in `~/.config/toofan/races.jsonl` (JSON Lines, capped at the latest 10 records).
 
-```
-words-30=105
-code-15=54
-```
+On first run after this format change, old `config.txt`/`pb.txt`/`results.txt`/`races.txt` files are auto-migrated to the new format and removed after successful conversion.
 
 ## Do Not
 
 - Do not add external API calls or network requests.
 - Do not add dependencies beyond Bubble Tea and Lipgloss.
 - Do not use AI-generated code snippets for lessons. All lessons are hand-written.
-- Do not modify the data format in `results.txt` or `pb.txt` without updating both `storage.go` and `profile.go` parsers.
+- Do not modify JSON/JSONL data formats without updating both `storage.go` and `profile.go` parsers/readers.
 - Do not add global mutable state outside of `theme.Current`.
