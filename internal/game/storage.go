@@ -45,7 +45,10 @@ type ResultRecord struct {
 }
 
 func init() {
-	configDir, _ := os.UserConfigDir()
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return
+	}
 	dataDir = filepath.Join(configDir, "toofan")
 	migrate()
 }
