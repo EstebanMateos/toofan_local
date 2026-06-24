@@ -9,6 +9,7 @@ import (
 )
 
 func main() {
+	host := flag.String("host", "0.0.0.0", "host/interface to listen on")
 	port := flag.Int("port", 8525, "port to listen on")
 	flag.Parse()
 
@@ -73,7 +74,7 @@ func main() {
 		fmt.Fprint(w, "ok")
 	})
 
-	addr := fmt.Sprintf(":%d", *port)
+	addr := fmt.Sprintf("%s:%d", *host, *port)
 	log.Printf("toofan race server listening on %s", addr)
 	log.Fatal(http.ListenAndServe(addr, nil))
 }

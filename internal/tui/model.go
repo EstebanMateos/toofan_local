@@ -84,6 +84,7 @@ type model struct {
 	onlineRoomIDBuf string
 	onlinePin       string
 	onlinePinBuf    string
+	serverURLBuf    string
 	onlineSizeCur   int
 	onlineSize      int
 	onlineConfigCur int

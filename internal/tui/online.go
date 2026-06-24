@@ -25,6 +25,7 @@ const (
 	onlineRacing      = 9
 	onlineResults     = 10
 	onlineConfigPick  = 11
+	onlineServerURL   = 12
 )
 
 type joinResultMsg struct {
@@ -37,7 +38,7 @@ type startRaceResultMsg struct {
 }
 
 var onlineSizes = []int{2, 3, 4, 5, 6}
-var onlineActions = []string{"No Rooms (Quick Match)", "Join Room", "Create Room"}
+var onlineActions = []string{"No Rooms (Quick Match)", "Join Room", "Create Room", "Server URL"}
 
 func (m model) handleOnline(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.raceState {
@@ -51,6 +52,8 @@ func (m model) handleOnline(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handlePinInput(msg)
 	case onlineConfigPick:
 		return m.handleConfigPicker(msg)
+	case onlineServerURL:
+		return m.handleServerURLInput(msg)
 	case onlineUsername:
 		return m.handleUsernameInput(msg)
 	case onlineLobby, onlineCountdown:
@@ -83,6 +86,11 @@ func (m model) handleActionPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.onlineActionCur++
 		}
 	case "enter":
+		if m.onlineActionCur == 3 {
+			m.serverURLBuf = m.serverURL
+			m.raceState = onlineServerURL
+			return m, nil
+		}
 		m.isCreating = (m.onlineActionCur == 2)
 		m.onlineRoomID = ""
 		m.onlineRoomIDBuf = ""
@@ -98,6 +106,34 @@ func (m model) handleActionPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		m.pickingOnline = false
 		m.raceState = onlineOff
+	}
+	return m, nil
+}
+
+func (m model) handleServerURLInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.serverURLBuf = ""
+		m.raceState = onlineActionPick
+		return m, nil
+	case "enter":
+		m.serverURL = normalizeServerURL(m.serverURLBuf)
+		m.serverURLBuf = ""
+		m.save()
+		m.raceState = onlineActionPick
+		return m, nil
+	case "backspace":
+		if len(m.serverURLBuf) > 0 {
+			m.serverURLBuf = m.serverURLBuf[:len(m.serverURLBuf)-1]
+		}
+	case "ctrl+u":
+		m.serverURLBuf = ""
+	default:
+		for _, r := range msg.Runes {
+			if len(m.serverURLBuf) < 128 {
+				m.serverURLBuf += string(r)
+			}
+		}
 	}
 	return m, nil
 }
@@ -123,10 +159,7 @@ func (m model) handleSizePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) getOnlineConfigOptions() []string {
-	opts := []string{"Mode"}
-	if m.mode == "code" {
-		opts = append(opts, "Language")
-	}
+	opts := []string{"Mode", "Language"}
 	opts = append(opts, "Difficulty", "Duration", "Start Policy", "Continue")
 	return opts
 }
@@ -472,6 +505,8 @@ func (m model) viewOnline(p theme.Palette) string {
 		return m.viewPinPrompt(p)
 	case onlineConfigPick:
 		return m.viewConfig(p)
+	case onlineServerURL:
+		return m.viewServerURLPrompt(p)
 	case onlineUsername:
 		return m.viewUsernamePrompt(p)
 	case onlineConnecting:
@@ -561,7 +596,21 @@ func mInput(p theme.Palette, prompt, value, hint string) string {
 }
 
 func (m model) viewActionPicker(p theme.Palette) string {
-	return renderList(p, "multiplayer", onlineActions, nil, m.onlineActionCur)
+	suffixes := make([]string, len(onlineActions))
+	current := m.serverURL
+	if current == "" {
+		current = game.DefaultServerURL
+	}
+	suffixes[3] = lipgloss.NewStyle().Foreground(p.Foreground).Render(current)
+	return renderList(p, "multiplayer", onlineActions, suffixes, m.onlineActionCur)
+}
+
+func (m model) viewServerURLPrompt(p theme.Palette) string {
+	display := m.serverURLBuf
+	if display == "" && m.serverURL != "" {
+		display = m.serverURL
+	}
+	return mInput(p, "server url", display, "enter URL, empty uses "+game.DefaultServerURL)
 }
 
 func (m model) viewSizePicker(p theme.Palette) string {
@@ -613,10 +662,7 @@ func (m model) viewLobby(p theme.Palette) string {
 		roomLabel += dim.Render(" (private)")
 	}
 
-	modeInfo := fmt.Sprintf("%s · %s · %ds", m.mode, m.difficulty, m.duration)
-	if m.mode == "code" {
-		modeInfo = fmt.Sprintf("%s · %s · %s · %ds", m.mode, m.lang, m.difficulty, m.duration)
-	}
+	modeInfo := fmt.Sprintf("%s · %s · %s · %ds", m.mode, m.lang, m.difficulty, m.duration)
 
 	lines := []string{
 		hi.Render("lobby"),
@@ -784,4 +830,15 @@ func viewOnlineRaceBar(p theme.Palette, players []game.RacePlayer, barWidth int)
 	}
 
 	return strings.Join(rows, "\n")
+}
+
+func normalizeServerURL(raw string) string {
+	url := strings.TrimSpace(raw)
+	if url == "" || url == game.DefaultServerURL {
+		return ""
+	}
+	if !strings.Contains(url, "://") {
+		url = "http://" + url
+	}
+	return strings.TrimRight(url, "/")
 }
