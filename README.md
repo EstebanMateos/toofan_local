@@ -26,11 +26,14 @@ _Practice with english words or real code snippets. No browser, no account, ever
 - **Two Modes:** Practice standard English words or real-world code snippets.
 - **Curated Lessons:** Hand-written, topic-based code exercises across multiple languages.
 - **Dynamic Themes:** Cycle between multiple aesthetic terminal themes (`ctrl+t`).
+- **Bot Racing:** Race against 1-5 customizable AI bots that adapt to your speed (`ctrl+b`).
+- **Multiplayer Racing:** Compete with others in real-time via the built-in race server (`ctrl+n`).
 - **Live Metrics:** Real-time WPM speed and accuracy tracking.
 - **Error Review:** See exactly which words you mistyped after every test.
 - **Ranks:** Automated progression system based on your typing speed.
-- **Offline & Local:** No browser, no account, zero telemetry.
 - **Racing:** Race against your own last 10 tests.
+- **Offline & Local:** No browser, no account, and zero tracking. All data stays on your machine (except for real-time stats shared during multiplayer races).
+- **Data Collection in multiplayer:** While playing multiplayer, to make sure you have a smooth experience, we collect only the username, IP address (required for preventing multiple multiplayer sessions for the same user), room size choice, progress and your WPM. We DO NOT collect history, PBs, config, keystrokes, or anything except the above listed. Our commitment to privacy is absolute.
 
 <p align="center">
   <img src="assets/code-snippets-grid.png" width="48%" title="Real Code Snippets" alt="Real Code Snippets" />
@@ -104,17 +107,38 @@ accuracy = (total_chars - all_mistakes) / total_chars × 100
 <details>
 <summary>Where are my files stored?</summary>
 
-Everything lives in `~/.config/toofan/` as plain text files:
+Everything lives in `~/.config/toofan/` as local JSON/JSONL files:
 
-- `config.txt` : Your selected duration, mode, language, and theme
-- `results.txt` : Every test result (date, wpm, accuracy, duration, mode)
-- `pb.txt` : Your personal bests per mode and duration
+- `config.json` : Your selected duration, mode, language, theme, online username/server URL, and PBs
+- `results.jsonl` : Every test result (date, wpm, accuracy, duration, mode)
+- `races.jsonl` : Your latest local race records
 </details>
 
 <details>
 <summary>Can I backup my data?</summary>
 
 Yes. Press `ctrl+s` to save a backup and `ctrl+r` to restore from one. Backups are saved to `~/.config/toofan/backups/` and can be moved between machines.
+
+</details>
+
+<details>
+<summary>Does online mode require account?</summary>
+
+No. Online mode only requires a username that uniquely identifies you across the server. No account or registration is required.
+
+</details>
+
+<details>
+<summary>What data is collected in online mode?</summary>
+
+Only IP, room size choice, progress, your WPM, and your username are used during online mode. This data is used to exchange information between clients and log join/leave events. No history, PBs, config, or keystrokes are stored on the server.
+
+</details>
+
+<details>
+<summary>Does playing against bots require internet connection?</summary>
+
+No. All bots run locally on your machine. Only multiplayer mode requires internet.
 
 </details>
 
@@ -164,7 +188,7 @@ _(If you built it from source and moved it globally, run `sudo rm /usr/local/bin
 
 Yes. Everything runs locally and is embedded in the binary. No internet needed.
 
-But there’s currently a pending [PR-50](https://github.com/vyrx-dev/toofan/pull/50) for `toofan-online`, which will add multiplayer support. It’s going to be a separate package from the main branch so the original offline experience stays exactly as promised.
+Bot races work offline. Multiplayer mode requires a network connection to a race server.
 
 </details>
 
@@ -181,9 +205,14 @@ We're always looking to add more. If your favorite programming language isn't su
 - [x] Proper documentation for AI and contributors
 - [ ] More language support
 - [x] Difficulty levels for english words
-- [ ] AUR, Homebrew, Nix packages
+- [ ] AUR, Homebrew, Nix packages, Fedora & Ubuntu repos
 - [x] Fix top pane alignment to match bottom panes in profile
 
+## Contributors
+
+- Huge thanks to [@aaravmaloo](https://github.com/aaravmaloo) for creating online mode and implementing AI bots.
+
+(As a contributor, to get your name to mentions, please create a PR along with the contributions you made.)
 ## Contributing
 
 - New snippets : Drop a file in `internal/lang/data/<language>/lessons/` and rebuild

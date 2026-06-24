@@ -28,6 +28,7 @@ func (m model) handleTyping(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.activeRace != nil {
 			m.game.SetText(m.activeRace.Text)
 		}
+		m.botLastTick = time.Time{}
 
 	case "ctrl+d":
 		if m.mode == "words" {
@@ -96,6 +97,27 @@ func (m model) handleTyping(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.game.TypeChar('?')
 
+	case "ctrl+b":
+		if !m.game.Started() {
+			m.pickingBots = true
+			m.botCountCur = 0
+			m.botDiffCur = 0
+			m.botPickStep = 0
+			return m, nil
+		}
+
+	case "ctrl+n":
+		if !m.game.Started() {
+			if m.raceClient != nil {
+				m.message = "already in an online session. press esc to leave."
+				m.msgTime = time.Now()
+				return m, nil
+			}
+			m.pickingOnline = true
+			m.raceState = onlineActionPick
+			return m, nil
+		}
+
 	case "ctrl+p":
 		if !m.game.Started() {
 			m.prof = loadProfile()
@@ -137,6 +159,9 @@ func (m model) viewTyping(p theme.Palette) string {
 	if m.showHelp {
 		return m.viewHelp(p)
 	}
+	if m.pickingBots {
+		return m.viewBotPicker(p)
+	}
 	if m.pickingLang {
 		return m.viewPicker(p)
 	}
@@ -149,6 +174,9 @@ func (m model) viewTyping(p theme.Palette) string {
 	if m.pickingDifficulty {
 		return m.viewDifficultyPicker(p)
 	}
+	if m.pickingOnline {
+		return m.viewOnline(p)
+	}
 
 	dim := lipgloss.NewStyle().Foreground(p.Foreground)
 	hi := lipgloss.NewStyle().Foreground(p.Accent)
@@ -158,10 +186,6 @@ func (m model) viewTyping(p theme.Palette) string {
 
 	lines := splitLines(m.game.Text(), textWidth, m.game.CodeMode)
 	curLine := cursorLine(lines, len(m.game.Input()))
-	ghostPos := -1
-	if m.activeRace != nil && m.game.Started() {
-		ghostPos = ghostLenAt(m.activeRace.Points, int(m.game.Elapsed().Milliseconds()))
-	}
 
 	// word mode: 3 lines (monkeytype style), code mode: 7 lines (full snippet)
 	visible := 3
@@ -177,9 +201,46 @@ func (m model) viewTyping(p theme.Palette) string {
 		bot = len(lines)
 	}
 
+	// build ghost cursor positions from bots
+	ghosts := make(map[int]lipgloss.Style)
+	textLen := len(m.game.Text())
+	if m.activeRace != nil && m.game.Started() {
+		ghostPos := ghostLenAt(m.activeRace.Points, int(m.game.Elapsed().Milliseconds()))
+		if ghostPos >= 0 && ghostPos < textLen {
+			ghosts[ghostPos] = lipgloss.NewStyle().Foreground(p.Accent).Underline(true)
+		}
+	}
+	if len(m.bots) > 0 {
+		for _, b := range m.bots {
+			pos := int(b.Progress * float64(textLen))
+			if pos >= textLen {
+				pos = textLen - 1
+			}
+			if pos >= 0 {
+				botColor := lipgloss.Color(botColorHexes[b.ID%len(botColorHexes)])
+				ghosts[pos] = lipgloss.NewStyle().Foreground(botColor).Faint(true)
+			}
+		}
+	} else if m.raceClient != nil && len(m.racePlayers) > 0 {
+		for _, pl := range m.racePlayers {
+			if pl.IsUser {
+				continue
+			}
+			pos := int(pl.Progress * float64(textLen))
+			if pos >= textLen {
+				pos = textLen - 1
+			}
+			if pos >= 0 {
+				colorIdx := stringToColorIndex(pl.Name)
+				playerColor := lipgloss.Color(botColorHexes[colorIdx])
+				ghosts[pos] = lipgloss.NewStyle().Foreground(playerColor).Faint(true)
+			}
+		}
+	}
+
 	text := lipgloss.NewStyle().
 		Padding(0, 2).
-		Render(colorText(m.game, p, lines, top, bot, ghostPos))
+		Render(colorText(m.game, p, lines, top, bot, ghosts))
 
 	// timer at top
 	var topLine string
@@ -212,11 +273,30 @@ func (m model) viewTyping(p theme.Palette) string {
 	out = append(out, text)
 
 	// progress bar when typing
-	if m.game.Started() {
-		ratio := min(m.game.Stats().WPM/200.0, 1.0) // rough estimate
+	if m.raceClient != nil && len(m.racePlayers) > 0 {
+		userProg := 0.0
+		if len(m.game.Text()) > 0 {
+			userProg = float64(len(m.game.Input())) / float64(len(m.game.Text()))
+		}
+		// update local player's progress for immediate feedback
+		for i := range m.racePlayers {
+			if m.racePlayers[i].IsUser {
+				m.racePlayers[i].Progress = userProg
+				break
+			}
+		}
+		out = append(out, "", viewOnlineRaceBar(p, m.racePlayers, textWidth-4))
+	} else if len(m.bots) > 0 {
+		userProg := 0.0
+		if len(m.game.Text()) > 0 {
+			userProg = float64(len(m.game.Input())) / float64(len(m.game.Text()))
+		}
+		out = append(out, "", viewRaceBar(p, m.bots, userProg, textWidth-4))
+	} else if m.game.Started() {
+		ratio := min(m.game.Stats().WPM/200.0, 1.0)
 		if m.game.Duration() > 0 {
 			ratio = min(float64(m.game.TimeLeft())/float64(m.game.Duration()), 1.0)
-			ratio = 1.0 - ratio // invert for progress
+			ratio = 1.0 - ratio
 		} else {
 			if len(m.game.Text()) > 0 {
 				ratio = min(float64(len(m.game.Input()))/float64(len(m.game.Text())), 1.0)
@@ -227,9 +307,7 @@ func (m model) viewTyping(p theme.Palette) string {
 		bar := lipgloss.NewStyle().Foreground(p.Accent).Render(strings.Repeat("━", filled)) +
 			lipgloss.NewStyle().Foreground(p.Foreground).Render(strings.Repeat("─", barWidth-filled))
 		out = append(out, "", bar)
-
 	} else {
-		// before test: subtle info line
 		var modeLabel string
 		if m.mode == "code" {
 			modeLabel = "code (" + m.lang + ")"
@@ -239,6 +317,9 @@ func (m model) viewTyping(p theme.Palette) string {
 		infoStr := modeLabel + " · ? help"
 		if m.activeRace != nil {
 			infoStr += fmt.Sprintf(" · old %.0f", m.activeRace.Stats.WPM)
+		}
+		if len(m.bots) > 0 {
+			infoStr += fmt.Sprintf(" · %d bots", len(m.bots))
 		}
 		info := dim.Render(infoStr)
 		out = append(out, "", info)
@@ -262,6 +343,8 @@ func (m model) viewHelp(p theme.Palette) string {
 		val.Render("ctrl+o") + dim.Render("    change lesson (code mode only)"),
 		val.Render("ctrl+t") + dim.Render("    change theme"),
 		val.Render("ctrl+p") + dim.Render("    open profile"),
+		val.Render("ctrl+b") + dim.Render("    race against bots"),
+		val.Render("ctrl+n") + dim.Render("    multiplayer race"),
 		val.Render("ctrl+d") + dim.Render("    change difficulty (words mode only)"),
 		val.Render("ctrl+g") + dim.Render("    race against previous run"),
 		val.Render("tab") + dim.Render("       restart test"),
@@ -287,4 +370,12 @@ func ghostLenAt(points []game.RacePoint, elapsedMS int) int {
 		out = p.Len
 	}
 	return out
+}
+
+func stringToColorIndex(s string) int {
+	var sum int
+	for _, r := range s {
+		sum += int(r)
+	}
+	return sum % len(botColorHexes)
 }

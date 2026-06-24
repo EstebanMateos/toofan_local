@@ -8,12 +8,12 @@ import (
 	"github.com/vyrx-dev/toofan/internal/theme"
 )
 
-// colorText renders visible lines with typed/error/cursor/untyped styling
-func colorText(g *game.Game, p theme.Palette, lines []string, top, bot int, ghostPos int) string {
+// colorText renders visible lines with typed/error/cursor/untyped styling.
+// ghostPositions maps character positions to their specific lipgloss style (for colored bot ghosts).
+func colorText(g *game.Game, p theme.Palette, lines []string, top, bot int, ghostPositions map[int]lipgloss.Style) string {
 	ok := lipgloss.NewStyle().Foreground(p.Typed)
 	bad := lipgloss.NewStyle().Foreground(p.Error).Underline(true)
 	cur := lipgloss.NewStyle().Foreground(p.Background).Background(p.Cursor)
-	ghost := lipgloss.NewStyle().Foreground(p.Accent).Underline(true)
 	dim := lipgloss.NewStyle().Foreground(p.Foreground)
 
 	typed := len(g.Input())
@@ -34,15 +34,16 @@ func colorText(g *game.Game, p theme.Palette, lines []string, top, bot int, ghos
 		}
 		for _, ch := range lines[i] {
 			s := string(ch)
+			ghostStyle, isGhost := ghostPositions[pos]
 			switch {
-			case pos == typed:
-				out.WriteString(cur.Render(s))
-			case pos == ghostPos:
-				out.WriteString(ghost.Render(s))
 			case pos < typed && g.Errors()[pos]:
 				out.WriteString(bad.Render(s))
 			case pos < typed:
 				out.WriteString(ok.Render(s))
+			case pos == typed:
+				out.WriteString(cur.Render(s))
+			case isGhost:
+				out.WriteString(ghostStyle.Render(s))
 			default:
 				out.WriteString(dim.Render(s))
 			}

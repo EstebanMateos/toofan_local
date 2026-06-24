@@ -31,6 +31,8 @@ type ConfigRecord struct {
 	Lang       string             `json:"lang"`
 	Difficulty string             `json:"difficulty"`
 	Theme      string             `json:"theme"`
+	Username   string             `json:"username,omitempty"`
+	ServerURL  string             `json:"serverURL,omitempty"`
 	PB         map[string]float64 `json:"pb"`
 }
 
@@ -150,7 +152,7 @@ func LoadRaces() []RaceRecord {
 	return out
 }
 
-func LoadConfig() (duration int, mode string, language string, difficulty string, themeName string) {
+func LoadConfig() (duration int, mode string, language string, difficulty string, themeName string, username string, serverURL string) {
 	duration, mode, language, difficulty, themeName = 30, "words", "go", "easy", "tokyonight"
 	cfg, ok := loadConfigRecord()
 	if !ok {
@@ -171,16 +173,20 @@ func LoadConfig() (duration int, mode string, language string, difficulty string
 	if cfg.Theme != "" {
 		themeName = cfg.Theme
 	}
+	username = cfg.Username
+	serverURL = cfg.ServerURL
 	return
 }
 
-func SaveConfig(duration int, mode string, language string, difficulty string, themeName string) {
+func SaveConfig(duration int, mode string, language string, difficulty string, themeName string, username string, serverURL string) {
 	cfg, _ := loadConfigRecord()
 	cfg.Duration = duration
 	cfg.Mode = mode
 	cfg.Lang = language
 	cfg.Difficulty = difficulty
 	cfg.Theme = themeName
+	cfg.Username = username
+	cfg.ServerURL = serverURL
 	saveConfigRecord(cfg)
 }
 
@@ -310,6 +316,10 @@ func migrateConfig() {
 					cfg.Difficulty = parts[1]
 				case "theme":
 					cfg.Theme = parts[1]
+				case "username":
+					cfg.Username = parts[1]
+				case "server":
+					cfg.ServerURL = parts[1]
 				}
 			}
 			_ = f.Close()
