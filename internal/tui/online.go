@@ -321,6 +321,7 @@ func (m *model) disconnectRace() {
 	m.pickingOnline = false
 	m.raceState = onlineOff
 	m.racePlayers = nil
+	m.raceLeaderboard = nil
 	m.raceText = ""
 	m.onlineRoomIDBuf = ""
 	m.onlinePinBuf = ""
@@ -479,6 +480,7 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 			}
 		}
 		m.racePlayers = payload.Placements
+		m.raceLeaderboard = payload.Leaderboard
 		m.raceState = onlineResults
 		m.active = screenResults
 		m.finishedAt = time.Now()
@@ -804,7 +806,40 @@ func (m model) viewOnlineResults(p theme.Palette) string {
 		hi.Render(title),
 		"",
 		lipgloss.JoinVertical(lipgloss.Left, rows...),
+		"",
+		m.viewLeaderboard(p),
 	)
+}
+
+func (m model) viewLeaderboard(p theme.Palette) string {
+	if len(m.raceLeaderboard) == 0 {
+		return ""
+	}
+
+	dim := lipgloss.NewStyle().Foreground(p.Foreground)
+	hi := lipgloss.NewStyle().Foreground(p.Accent).Bold(true)
+	val := lipgloss.NewStyle().Foreground(p.Typed)
+
+	rows := []string{hi.Render("leaderboard")}
+	limit := len(m.raceLeaderboard)
+	if limit > 10 {
+		limit = 10
+	}
+	for i := 0; i < limit; i++ {
+		entry := m.raceLeaderboard[i]
+		mode := entry.Mode
+		if entry.Lang != "" {
+			mode += ":" + entry.Lang
+		}
+		meta := fmt.Sprintf("%s · %s · %ds", mode, entry.Difficulty, entry.Duration)
+		rows = append(rows, fmt.Sprintf("  %2d  %-12s  %s  %s",
+			i+1,
+			entry.Name,
+			val.Render(fmt.Sprintf("%.0f wpm", entry.WPM)),
+			dim.Render(meta),
+		))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
 func viewOnlineRaceBar(p theme.Palette, players []game.RacePlayer, barWidth int) string {

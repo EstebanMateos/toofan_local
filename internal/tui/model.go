@@ -76,6 +76,7 @@ type model struct {
 	botPickStep     int
 	raceClient      *game.RaceClient
 	racePlayers     []game.RacePlayer
+	raceLeaderboard []game.LeaderboardEntry
 	raceState       int
 	raceText        string
 	onlineCount     int

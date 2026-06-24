@@ -48,7 +48,18 @@ type ProgressMsg struct {
 }
 
 type FinishMsg struct {
-	Placements []PlayerProgress `json:"placements"`
+	Placements  []PlayerProgress   `json:"placements"`
+	Leaderboard []LeaderboardEntry `json:"leaderboard"`
+}
+
+type LeaderboardEntry struct {
+	Name       string  `json:"name"`
+	WPM        float64 `json:"wpm"`
+	Mode       string  `json:"mode"`
+	Lang       string  `json:"lang"`
+	Difficulty string  `json:"difficulty"`
+	Duration   int     `json:"duration"`
+	At         string  `json:"at"`
 }
 
 type OnlineMsg struct {

@@ -24,6 +24,7 @@ type room struct {
 	maxPlayers int
 	started    bool
 	counting   bool
+	finished   bool
 	startTime  time.Time
 	text       string
 	closed     bool
@@ -192,6 +193,7 @@ func (r *room) configure(name, difficulty, mode, lang string, duration int, auto
 	r.autoStart = autoStart
 	r.started = false
 	r.counting = false
+	r.finished = false
 	r.startTime = time.Time{}
 	r.text = ""
 	for _, p := range r.players {
@@ -215,6 +217,7 @@ func (r *room) startCountdown() {
 		return
 	}
 	r.counting = true
+	r.finished = false
 	r.mu.Unlock()
 
 	r.broadcast(ServerMsg{
@@ -228,7 +231,13 @@ func (r *room) startCountdown() {
 	r.text = generateText(r.mode, r.lang, r.difficulty)
 	r.started = true
 	r.counting = false
+	r.finished = false
 	r.startTime = time.Now()
+	for _, p := range r.players {
+		p.progress = 0
+		p.wpm = 0
+		p.finished = false
+	}
 	textPreview := r.text
 	if len(textPreview) > 80 {
 		textPreview = textPreview[:80] + "..."
@@ -258,18 +267,13 @@ func (r *room) startCountdown() {
 
 func (r *room) forceFinish() {
 	r.mu.Lock()
-	if r.closed {
+	if r.closed || r.finished {
 		r.mu.Unlock()
 		return
 	}
 
-	// Only finish if not already finished by allDone in broadcastProgress
 	players := make([]PlayerProgress, 0, len(r.players))
-	alreadyFinished := true
 	for _, p := range r.players {
-		if !p.finished {
-			alreadyFinished = false
-		}
 		players = append(players, PlayerProgress{
 			Name:     p.name,
 			Progress: p.progress,
@@ -277,23 +281,11 @@ func (r *room) forceFinish() {
 			Finished: p.finished,
 		})
 	}
+	r.finished = true
+	mode, lang, difficulty, duration := r.mode, r.lang, r.difficulty, r.duration
 	r.mu.Unlock()
 
-	if alreadyFinished {
-		return
-	}
-
-	// sort by progress desc
-	for i := 0; i < len(players); i++ {
-		for j := i + 1; j < len(players); j++ {
-			if players[j].Progress > players[i].Progress {
-				players[i], players[j] = players[j], players[i]
-			}
-		}
-	}
-
-	r.broadcast(ServerMsg{Type: "finish", Payload: FinishMsg{Placements: players}})
-	log.Printf("room=%s race_finish reason=timeout players=%d", r.id, len(players))
+	r.finishRace("timeout", players, mode, lang, difficulty, duration)
 }
 
 func (r *room) updateProgress(name string, progress float64, wpm float64) {
@@ -315,7 +307,6 @@ func (r *room) updateProgress(name string, progress float64, wpm float64) {
 
 func (r *room) broadcastProgress() {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 
 	players := make([]PlayerProgress, 0, len(r.players))
 	allDone := len(r.players) > 0
@@ -330,6 +321,16 @@ func (r *room) broadcastProgress() {
 			allDone = false
 		}
 	}
+	shouldFinish := allDone && !r.finished
+	if shouldFinish {
+		r.finished = true
+	}
+	mode, lang, difficulty, duration := r.mode, r.lang, r.difficulty, r.duration
+	clients := make([]*client, 0, len(r.players))
+	for c := range r.players {
+		clients = append(clients, c)
+	}
+	r.mu.Unlock()
 
 	// sort by progress desc
 	for i := 0; i < len(players); i++ {
@@ -341,23 +342,49 @@ func (r *room) broadcastProgress() {
 	}
 
 	data := marshal(ServerMsg{Type: "progress", Payload: ProgressMsg{Players: players}})
-	for c := range r.players {
+	for _, c := range clients {
 		select {
 		case c.events <- data:
 		default:
 		}
 	}
 
-	if allDone {
-		finishData := marshal(ServerMsg{Type: "finish", Payload: FinishMsg{Placements: players}})
-		for c := range r.players {
-			select {
-			case c.events <- finishData:
-			default:
+	if shouldFinish {
+		r.finishRace("all_done", players, mode, lang, difficulty, duration)
+	}
+}
+
+func (r *room) finishRace(reason string, players []PlayerProgress, mode, lang, difficulty string, duration int) {
+	for i := 0; i < len(players); i++ {
+		for j := i + 1; j < len(players); j++ {
+			if players[j].Progress > players[i].Progress {
+				players[i], players[j] = players[j], players[i]
 			}
 		}
-		log.Printf("room=%s race_finish reason=all_done players=%d", r.id, len(players))
 	}
+
+	now := time.Now().Format("2006-01-02 15:04")
+	entries := make([]LeaderboardEntry, 0, len(players))
+	for _, p := range players {
+		if p.WPM <= 0 {
+			continue
+		}
+		entries = append(entries, LeaderboardEntry{
+			Name:       p.Name,
+			WPM:        p.WPM,
+			Mode:       mode,
+			Lang:       lang,
+			Difficulty: difficulty,
+			Duration:   duration,
+			At:         now,
+		})
+	}
+	leaderboard := r.hub.recordLeaderboard(entries)
+	r.broadcast(ServerMsg{Type: "finish", Payload: FinishMsg{
+		Placements:  players,
+		Leaderboard: leaderboard,
+	}})
+	log.Printf("room=%s race_finish reason=%s players=%d leaderboard=%d", r.id, reason, len(players), len(leaderboard))
 }
 
 func (r *room) close() {

@@ -61,7 +61,18 @@ type ProgressPayload struct {
 }
 
 type FinishPayload struct {
-	Placements []RacePlayer `json:"placements"`
+	Placements  []RacePlayer       `json:"placements"`
+	Leaderboard []LeaderboardEntry `json:"leaderboard"`
+}
+
+type LeaderboardEntry struct {
+	Name       string  `json:"name"`
+	WPM        float64 `json:"wpm"`
+	Mode       string  `json:"mode"`
+	Lang       string  `json:"lang"`
+	Difficulty string  `json:"difficulty"`
+	Duration   int     `json:"duration"`
+	At         string  `json:"at"`
 }
 
 type OnlinePayload struct {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -19,9 +20,10 @@ type client struct {
 }
 
 type hub struct {
-	mu      sync.Mutex
-	rooms   map[string]*room
-	clients map[*client]bool
+	mu          sync.Mutex
+	rooms       map[string]*room
+	clients     map[*client]bool
+	leaderboard []LeaderboardEntry
 }
 
 func newHub() *hub {
@@ -29,6 +31,29 @@ func newHub() *hub {
 		rooms:   make(map[string]*room),
 		clients: make(map[*client]bool),
 	}
+}
+
+func (h *hub) recordLeaderboard(entries []LeaderboardEntry) []LeaderboardEntry {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	for _, entry := range entries {
+		if entry.WPM <= 0 {
+			continue
+		}
+		h.leaderboard = append(h.leaderboard, entry)
+	}
+
+	sort.SliceStable(h.leaderboard, func(i, j int) bool {
+		return h.leaderboard[i].WPM > h.leaderboard[j].WPM
+	})
+	if len(h.leaderboard) > 10 {
+		h.leaderboard = h.leaderboard[:10]
+	}
+
+	out := make([]LeaderboardEntry, len(h.leaderboard))
+	copy(out, h.leaderboard)
+	return out
 }
 
 func (h *hub) onlineCount() int {
