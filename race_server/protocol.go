@@ -66,6 +66,16 @@ type OnlineMsg struct {
 	Count int `json:"count"`
 }
 
+type LobbyCreatedMsg struct {
+	Room       string `json:"room"`
+	Host       string `json:"host"`
+	Mode       string `json:"mode"`
+	Lang       string `json:"lang"`
+	Difficulty string `json:"difficulty"`
+	Duration   int    `json:"duration"`
+	IsPrivate  bool   `json:"is_private"`
+}
+
 type ProgressUpdate struct {
 	Name     string  `json:"name"`
 	Room     string  `json:"room"`

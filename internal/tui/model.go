@@ -68,37 +68,38 @@ type model struct {
 	races       []game.RaceRecord
 	activeRace  *game.RaceRecord
 
-	bots            []game.Bot
-	botCfg          game.BotConfig
-	pickingBots     bool
-	botCountCur     int
-	botDiffCur      int
-	botPickStep     int
-	raceClient      *game.RaceClient
-	racePlayers     []game.RacePlayer
-	raceLeaderboard []game.LeaderboardEntry
-	raceState       int
-	raceText        string
-	onlineCount     int
-	onlineActionCur int
-	onlineRoomID    string
-	onlineRoomIDBuf string
-	onlinePin       string
-	onlinePinBuf    string
-	serverURLBuf    string
-	onlineSizeCur   int
-	onlineSize      int
-	onlineConfigCur int
-	isCreating      bool
-	onlineAutoStart bool
-	isRaceHost      bool
-	raceHostName    string
-	raceCanStart    bool
-	serverURL       string
-	pickingOnline   bool
-	username        string
-	usernameBuf     string
-	botLastTick     time.Time
+	bots              []game.Bot
+	botCfg            game.BotConfig
+	pickingBots       bool
+	botCountCur       int
+	botDiffCur        int
+	botPickStep       int
+	raceClient        *game.RaceClient
+	racePlayers       []game.RacePlayer
+	raceLeaderboard   []game.LeaderboardEntry
+	raceState         int
+	raceText          string
+	onlineCount       int
+	onlineActionCur   int
+	onlineRoomID      string
+	onlineRoomIDBuf   string
+	onlinePin         string
+	onlinePinBuf      string
+	serverURLBuf      string
+	onlineSizeCur     int
+	onlineSize        int
+	onlineConfigCur   int
+	isCreating        bool
+	onlineConnectOnly bool
+	onlineAutoStart   bool
+	isRaceHost        bool
+	raceHostName      string
+	raceCanStart      bool
+	serverURL         string
+	pickingOnline     bool
+	username          string
+	usernameBuf       string
+	botLastTick       time.Time
 }
 
 func New() model {
@@ -218,6 +219,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m, cmd := m.handleRaceServerMsg(msg.Msg)
 		return m, cmd
 
+	case connectResultMsg:
+		return m.handleConnectResult(msg)
 	case joinResultMsg:
 		return m.handleJoinResult(msg)
 	case startRaceResultMsg:

@@ -108,7 +108,7 @@ func (m model) handleTyping(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "ctrl+n":
 		if !m.game.Started() {
-			if m.raceClient != nil {
+			if m.raceClient != nil && m.raceState != onlineOff && m.raceState != onlineActionPick {
 				m.message = "already in an online session. press esc to leave."
 				m.msgTime = time.Now()
 				return m, nil

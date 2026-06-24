@@ -17,6 +17,7 @@ type client struct {
 	events chan []byte
 	done   chan struct{}
 	closed bool
+	watch  bool
 }
 
 type hub struct {
@@ -95,6 +96,21 @@ func (h *hub) removeClient(c *client) {
 	}
 }
 
+func (h *hub) broadcastWatchers(msg ServerMsg) {
+	data := marshal(msg)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for c := range h.clients {
+		if !c.watch || c.closed {
+			continue
+		}
+		select {
+		case c.events <- data:
+		default:
+		}
+	}
+}
+
 func (h *hub) getRoom(id string) *room {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -156,6 +172,18 @@ func (h *hub) serveJoin(w http.ResponseWriter, r *http.Request) {
 			autoStart)
 		h.rooms[roomID] = rm
 		log.Printf("create lobby room=%s owner=%s private=%t auto_start=%t", roomID, name, pin != "", autoStart)
+		h.broadcastWatchersLocked(ServerMsg{
+			Type: "lobby_created",
+			Payload: LobbyCreatedMsg{
+				Room:       roomID,
+				Host:       name,
+				Mode:       rm.mode,
+				Lang:       rm.lang,
+				Difficulty: rm.difficulty,
+				Duration:   rm.duration,
+				IsPrivate:  rm.pin != "",
+			},
+		})
 	} else if roomID != "" {
 		rm = h.rooms[roomID]
 		if rm == nil {
@@ -246,6 +274,90 @@ func (h *hub) serveJoin(w http.ResponseWriter, r *http.Request) {
 			}
 			fmt.Fprintf(w, "data: %s\n\n", data)
 			flusher.Flush()
+		}
+	}
+}
+
+func (h *hub) serveWatch(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		http.Error(w, "name required", http.StatusBadRequest)
+		return
+	}
+
+	ip := r.Header.Get("X-Forwarded-For")
+	if ip == "" {
+		ip = r.RemoteAddr
+	}
+	if strings.Contains(ip, ",") {
+		ip = strings.Split(ip, ",")[0]
+	}
+	if strings.Contains(ip, ":") {
+		lastColon := strings.LastIndex(ip, ":")
+		if lastColon > strings.LastIndex(ip, "]") {
+			ip = ip[:lastColon]
+		}
+	}
+
+	c := &client{
+		name:   name,
+		ip:     ip,
+		events: make(chan []byte, 64),
+		done:   make(chan struct{}),
+		watch:  true,
+	}
+
+	h.mu.Lock()
+	h.clients[c] = true
+	h.mu.Unlock()
+	log.Printf("client %s connected to lobby notifications from %s", name, ip)
+	defer h.removeClient(c)
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	c.events <- marshal(ServerMsg{Type: "connected", Payload: OnlineMsg{Count: h.onlineCount()}})
+
+	ctx := r.Context()
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-c.done:
+			return
+		case <-ticker.C:
+			fmt.Fprintf(w, ": heartbeat\n\n")
+			flusher.Flush()
+		case data, ok := <-c.events:
+			if !ok {
+				return
+			}
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		}
+	}
+}
+
+func (h *hub) broadcastWatchersLocked(msg ServerMsg) {
+	data := marshal(msg)
+	for c := range h.clients {
+		if !c.watch || c.closed {
+			continue
+		}
+		select {
+		case c.events <- data:
+		default:
 		}
 	}
 }

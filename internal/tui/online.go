@@ -31,6 +31,9 @@ const (
 type joinResultMsg struct {
 	err error
 }
+type connectResultMsg struct {
+	err error
+}
 
 type onlineResultsDoneMsg struct{}
 type startRaceResultMsg struct {
@@ -41,7 +44,7 @@ type configureRaceResultMsg struct {
 }
 
 var onlineSizes = []int{2, 3, 4, 5, 6}
-var onlineActions = []string{"No Rooms (Quick Match)", "Join Room", "Create Room", "Server URL"}
+var onlineActions = []string{"Connect to Server", "No Rooms (Quick Match)", "Join Room", "Create Room", "Server URL"}
 
 func (m model) handleOnline(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.raceState {
@@ -89,19 +92,30 @@ func (m model) handleActionPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.onlineActionCur++
 		}
 	case "enter":
-		if m.onlineActionCur == 3 {
+		if m.onlineActionCur == 4 {
 			m.serverURLBuf = m.serverURL
 			m.raceState = onlineServerURL
 			return m, nil
 		}
-		m.isCreating = (m.onlineActionCur == 2)
+		if m.onlineActionCur == 0 {
+			if m.raceClient != nil {
+				m.message = "already connected"
+				m.msgTime = time.Now()
+				return m, nil
+			}
+			m.onlineConnectOnly = true
+			m.raceState = onlineUsername
+			return m, nil
+		}
+		m.onlineConnectOnly = false
+		m.isCreating = (m.onlineActionCur == 3)
 		m.onlineRoomID = ""
 		m.onlineRoomIDBuf = ""
 		m.onlinePin = ""
 		m.onlinePinBuf = ""
 		if m.isCreating {
 			m.raceState = onlinePinInput
-		} else if m.onlineActionCur == 1 {
+		} else if m.onlineActionCur == 2 {
 			m.raceState = onlineRoomIDInput
 		} else {
 			m.raceState = onlineUsername
@@ -296,8 +310,14 @@ func (m model) handleUsernameInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if serverURL == "" {
 			serverURL = game.DefaultServerURL
 		}
+		if m.raceClient != nil {
+			m.raceClient.Close()
+		}
 		m.raceClient = game.NewRaceClient(serverURL, m.username)
 
+		if m.onlineConnectOnly {
+			return m, m.connectServerCmd()
+		}
 		return m, m.joinRaceCmd()
 	case "backspace":
 		if len(m.usernameBuf) > 0 {
@@ -328,6 +348,7 @@ func (m *model) disconnectRace() {
 	m.isRaceHost = false
 	m.raceHostName = ""
 	m.raceCanStart = false
+	m.onlineConnectOnly = false
 }
 
 func (m model) listenRaceMsg() tea.Cmd {
@@ -348,6 +369,13 @@ func (m model) joinRaceCmd() tea.Cmd {
 	return func() tea.Msg {
 		err := m.raceClient.Join(m.onlineRoomID, m.onlinePin, m.isCreating, m.onlineSize, m.difficulty, m.mode, m.lang, m.duration, m.onlineAutoStart)
 		return joinResultMsg{err: err}
+	}
+}
+
+func (m model) connectServerCmd() tea.Cmd {
+	return func() tea.Msg {
+		err := m.raceClient.Connect()
+		return connectResultMsg{err: err}
 	}
 }
 
@@ -381,6 +409,32 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 	}
 
 	switch msg.Type {
+	case "connected":
+		var payload game.OnlinePayload
+		json.Unmarshal(msg.Payload, &payload)
+		m.onlineCount = payload.Count
+		m.message = fmt.Sprintf("connected to server · %d online", payload.Count)
+		m.msgTime = time.Now()
+		m.raceState = onlineActionPick
+		return m, m.listenRaceMsg()
+
+	case "lobby_created":
+		var payload game.LobbyCreatedPayload
+		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+			return m, m.listenRaceMsg()
+		}
+		visibility := "public"
+		if payload.IsPrivate {
+			visibility = "private"
+		}
+		mode := payload.Mode
+		if payload.Lang != "" {
+			mode += ":" + payload.Lang
+		}
+		m.message = fmt.Sprintf("new %s lobby %s by %s · %s · %s", visibility, payload.Room, payload.Host, mode, payload.Difficulty)
+		m.msgTime = time.Now()
+		return m, m.listenRaceMsg()
+
 	case "joined":
 		var payload game.LobbyPayload
 		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
@@ -513,6 +567,22 @@ func (m model) handleJoinResult(msg joinResultMsg) (model, tea.Cmd) {
 	return m, m.listenRaceMsg()
 }
 
+func (m model) handleConnectResult(msg connectResultMsg) (model, tea.Cmd) {
+	if msg.err != nil {
+		m.message = "failed: " + msg.err.Error()
+		m.msgTime = time.Now()
+		m.pickingOnline = false
+		m.raceState = onlineOff
+		m.raceClient = nil
+		m.onlineConnectOnly = false
+		return m, nil
+	}
+	m.pickingOnline = false
+	m.raceState = onlineActionPick
+	m.onlineConnectOnly = false
+	return m, m.listenRaceMsg()
+}
+
 func (m model) handleStartRaceResult(msg startRaceResultMsg) (model, tea.Cmd) {
 	if msg.err != nil {
 		m.message = msg.err.Error()
@@ -641,7 +711,10 @@ func (m model) viewActionPicker(p theme.Palette) string {
 	if current == "" {
 		current = game.DefaultServerURL
 	}
-	suffixes[3] = lipgloss.NewStyle().Foreground(p.Foreground).Render(current)
+	if m.raceClient != nil {
+		suffixes[0] = lipgloss.NewStyle().Foreground(p.Success).Render("connected")
+	}
+	suffixes[4] = lipgloss.NewStyle().Foreground(p.Foreground).Render(current)
 	return renderList(p, "multiplayer", onlineActions, suffixes, m.onlineActionCur)
 }
 

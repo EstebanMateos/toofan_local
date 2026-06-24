@@ -79,6 +79,16 @@ type OnlinePayload struct {
 	Count int `json:"count"`
 }
 
+type LobbyCreatedPayload struct {
+	Room       string `json:"room"`
+	Host       string `json:"host"`
+	Mode       string `json:"mode"`
+	Lang       string `json:"lang"`
+	Difficulty string `json:"difficulty"`
+	Duration   int    `json:"duration"`
+	IsPrivate  bool   `json:"is_private"`
+}
+
 type RaceConfig struct {
 	Difficulty string
 	Mode       string
@@ -109,6 +119,25 @@ func NewRaceClient(serverURL, username string) *RaceClient {
 		done:      make(chan struct{}),
 		client:    &http.Client{Timeout: 0},
 	}
+}
+
+func (c *RaceClient) Connect() error {
+	url := fmt.Sprintf("%s/race/watch?name=%s", c.serverURL, c.name)
+	resp, err := c.client.Get(url)
+	if err != nil {
+		return fmt.Errorf("connect failed: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		msg := strings.TrimSpace(string(body))
+		if msg == "" {
+			msg = fmt.Sprintf("status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("connect failed: %s", msg)
+	}
+	go c.readSSE(resp.Body)
+	return nil
 }
 
 func (c *RaceClient) Join(roomID, pin string, isCreate bool, size int, difficulty, mode, lang string, duration int, autoStart bool) error {
@@ -148,7 +177,6 @@ func (c *RaceClient) Join(roomID, pin string, isCreate bool, size int, difficult
 
 func (c *RaceClient) readSSE(body io.ReadCloser) {
 	defer body.Close()
-	defer close(c.msgs)
 
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 0, 64*1024), 64*1024)
@@ -169,6 +197,16 @@ func (c *RaceClient) readSSE(body io.ReadCloser) {
 		case c.msgs <- msg:
 		case <-c.done:
 			return
+		}
+	}
+
+	c.mu.Lock()
+	closed := c.closed
+	c.mu.Unlock()
+	if !closed {
+		select {
+		case c.msgs <- ServerMsg{Type: "disconnected"}:
+		default:
 		}
 	}
 }

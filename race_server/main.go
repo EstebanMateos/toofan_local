@@ -16,6 +16,7 @@ func main() {
 	h := newHub()
 
 	http.HandleFunc("/race/join", h.serveJoin)
+	http.HandleFunc("/race/watch", h.serveWatch)
 
 	http.HandleFunc("/race/progress", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
