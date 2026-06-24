@@ -14,17 +14,23 @@ import (
 // --- language picker ---
 
 func (m model) handlePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	choices := m.languageChoices()
+	if len(choices) == 0 {
+		m.pickingLang = false
+		return m, nil
+	}
+
 	switch msg.String() {
 	case "up", "k":
 		if m.langCur > 0 {
 			m.langCur--
 		}
 	case "down", "j":
-		if m.langCur < len(lang.Names)-1 {
+		if m.langCur < len(choices)-1 {
 			m.langCur++
 		}
 	case "enter":
-		m.lang = lang.Names[m.langCur]
+		m.lang = choices[m.langCur]
 		m.pickingLang = false
 		m.activeRace = nil
 		m.game = game.New(m.duration, m.mode, m.lang, m.difficulty)
@@ -36,7 +42,14 @@ func (m model) handlePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) viewPicker(p theme.Palette) string {
-	return renderList(p, "language", lang.Names, nil, m.langCur)
+	return renderList(p, "language", m.languageChoices(), nil, m.langCur)
+}
+
+func (m model) languageChoices() []string {
+	if m.mode == "code" {
+		return lang.Names
+	}
+	return lang.WordNames
 }
 
 // --- lesson picker ---

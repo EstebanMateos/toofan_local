@@ -17,18 +17,21 @@ type Snippet struct {
 }
 
 type langData struct {
-	Name     string
-	Words    []string
+	Name        string
+	Words       []string
 	EasyWords   []string
 	MediumWords []string
 	HardWords   []string
-	Snippets []Snippet
+	Snippets    []Snippet
 }
 
 var languages = map[string]*langData{}
 
-// Names holds code language names (excludes english), sorted
+// Names holds code language names, sorted.
 var Names []string
+
+// WordNames holds languages with word lists, sorted.
+var WordNames []string
 
 // parseLesson extracts a snippet from a lesson file.
 // Leading comments are stripped from the typed content.
@@ -122,6 +125,9 @@ func init() {
 			if lesson.IsDir() {
 				continue
 			}
+			if strings.HasSuffix(lesson.Name(), ".txt") {
+				continue
+			}
 			path := "data/" + name + "/" + lesson.Name()
 			if raw, err := fs.ReadFile(dataFS, path); err == nil {
 				snips := parseLesson(string(raw))
@@ -131,12 +137,46 @@ func init() {
 
 		if len(ld.Words) > 0 || len(ld.Snippets) > 0 {
 			languages[name] = ld
-			if name != "english" {
+			if len(ld.Words) > 0 {
+				WordNames = append(WordNames, name)
+			}
+			if len(ld.Snippets) > 0 {
 				Names = append(Names, name)
 			}
 		}
 	}
 	sort.Strings(Names)
+	sort.Strings(WordNames)
+}
+
+func HasWords(name string) bool {
+	ld, ok := languages[name]
+	return ok && len(ld.Words) > 0
+}
+
+func HasSnippets(name string) bool {
+	ld, ok := languages[name]
+	return ok && len(ld.Snippets) > 0
+}
+
+func DefaultWordName() string {
+	if HasWords("english") {
+		return "english"
+	}
+	if len(WordNames) > 0 {
+		return WordNames[0]
+	}
+	return "english"
+}
+
+func DefaultCodeName() string {
+	if HasSnippets("go") {
+		return "go"
+	}
+	if len(Names) > 0 {
+		return Names[0]
+	}
+	return "go"
 }
 
 // RandomWords picks random words for the word-mode typing test

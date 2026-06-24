@@ -8,7 +8,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/vyrx-dev/toofan/internal/game"
-	"github.com/vyrx-dev/toofan/internal/lang"
 	"github.com/vyrx-dev/toofan/internal/theme"
 )
 
@@ -51,16 +50,17 @@ func (m model) handleTyping(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			} else {
 				m.mode = "words"
 			}
+			m.lang = validLanguage(m.mode, m.lang)
 			m.game = game.New(m.duration, m.mode, m.lang, m.difficulty)
 			m.save()
 		}
 
 	case "ctrl+l":
-		if m.mode == "code" && !m.game.Started() {
+		if !m.game.Started() {
 			m.activeRace = nil
 			m.pickingLang = true
 			m.langCur = 0
-			for i, name := range lang.Names {
+			for i, name := range m.languageChoices() {
 				if name == m.lang {
 					m.langCur = i
 				}
@@ -234,7 +234,7 @@ func (m model) viewTyping(p theme.Palette) string {
 		if m.mode == "code" {
 			modeLabel = "code (" + m.lang + ")"
 		} else {
-			modeLabel = "words"
+			modeLabel = "words (" + m.lang + ")"
 		}
 		infoStr := modeLabel + " · ? help"
 		if m.activeRace != nil {
@@ -258,7 +258,7 @@ func (m model) viewHelp(p theme.Palette) string {
 		hi.Render("keybinds"),
 		"",
 		val.Render("ctrl+w") + dim.Render("    toggle words/code"),
-		val.Render("ctrl+l") + dim.Render("    change language (code mode only)"),
+		val.Render("ctrl+l") + dim.Render("    change language"),
 		val.Render("ctrl+o") + dim.Render("    change lesson (code mode only)"),
 		val.Render("ctrl+t") + dim.Render("    change theme"),
 		val.Render("ctrl+p") + dim.Render("    open profile"),

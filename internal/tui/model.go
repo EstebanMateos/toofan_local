@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/vyrx-dev/toofan/internal/game"
+	"github.com/vyrx-dev/toofan/internal/lang"
 	"github.com/vyrx-dev/toofan/internal/theme"
 )
 
@@ -67,6 +68,7 @@ type model struct {
 func New() model {
 	duration, mode, language, difficulty, th := game.LoadConfig()
 	theme.Current = theme.ByName(th)
+	language = validLanguage(mode, language)
 
 	return model{
 		game:       game.New(duration, mode, language, difficulty),
@@ -75,6 +77,19 @@ func New() model {
 		lang:       language,
 		difficulty: difficulty,
 	}
+}
+
+func validLanguage(mode, language string) string {
+	if mode == "code" {
+		if lang.HasSnippets(language) {
+			return language
+		}
+		return lang.DefaultCodeName()
+	}
+	if lang.HasWords(language) {
+		return language
+	}
+	return lang.DefaultWordName()
 }
 
 type tick time.Time
