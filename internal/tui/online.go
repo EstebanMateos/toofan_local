@@ -215,7 +215,7 @@ func (m model) handleConfigPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "Start Policy":
 			m.onlineAutoStart = !m.onlineAutoStart
 		case "Continue":
-			if m.raceClient != nil {
+			if m.raceClient != nil && m.onlineRoomID != "" {
 				m.raceState = onlineConnecting
 				return m, m.configureRaceCmd()
 			}
