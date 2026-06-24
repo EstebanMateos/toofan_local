@@ -23,12 +23,33 @@ func (m model) handleResults(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.showingErrors = !m.showingErrors
 			return m, nil
 		}
+	case "enter":
+		if m.raceState == onlineResults && m.raceClient != nil {
+			if !m.isRaceHost {
+				m.message = "waiting for host to configure next race"
+				m.msgTime = time.Now()
+				return m, nil
+			}
+			m.pickingOnline = true
+			m.raceState = onlineConfigPick
+			m.onlineConfigCur = 0
+			m.showingErrors = false
+			m.active = screenTyping
+			return m, nil
+		}
 	case "tab":
 		// restart immediately after a finished test
 	case "ctrl+t":
 		theme.Next()
 		m.save()
 	case "esc":
+		if m.raceState == onlineResults && m.raceClient != nil {
+			m.disconnectRace()
+			m.game = game.New(m.duration, m.mode, m.lang, m.difficulty)
+			m.showingErrors = false
+			m.active = screenTyping
+			return m, nil
+		}
 		if m.showingErrors {
 			m.showingErrors = false
 			return m, nil
@@ -54,7 +75,7 @@ func (m model) handleResults(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.raceState == onlineResults {
+	if m.raceState == onlineResults && m.raceClient != nil {
 		m.disconnectRace()
 	}
 
@@ -163,6 +184,11 @@ func (m model) viewResults(p theme.Palette) string {
 		out = append(out, "", viewBotResults(p, placements))
 	} else if m.raceState == onlineResults {
 		out = append(out, "", m.viewOnlineResults(p))
+		if m.isRaceHost {
+			out = append(out, "", dim.Render("enter configure next race · esc leave room"))
+		} else {
+			out = append(out, "", dim.Render("waiting for host · esc leave room"))
+		}
 	}
 	return lipgloss.JoinVertical(lipgloss.Center, out...)
 }

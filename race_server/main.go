@@ -63,6 +63,28 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 	})
 
+	http.HandleFunc("/race/configure", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "POST only", http.StatusMethodNotAllowed)
+			return
+		}
+		var req ConfigureRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad json", http.StatusBadRequest)
+			return
+		}
+		rm := h.getRoom(req.Room)
+		if rm == nil {
+			http.Error(w, "room not found", http.StatusNotFound)
+			return
+		}
+		if err := rm.configure(req.Name, req.Difficulty, req.Mode, req.Lang, req.Duration, req.AutoStart); err != nil {
+			http.Error(w, err.Error(), http.StatusForbidden)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
 	http.HandleFunc("/race/online", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Access-Control-Allow-Origin", "*")

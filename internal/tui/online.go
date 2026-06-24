@@ -36,6 +36,9 @@ type onlineResultsDoneMsg struct{}
 type startRaceResultMsg struct {
 	err error
 }
+type configureRaceResultMsg struct {
+	err error
+}
 
 var onlineSizes = []int{2, 3, 4, 5, 6}
 var onlineActions = []string{"No Rooms (Quick Match)", "Join Room", "Create Room", "Server URL"}
@@ -198,6 +201,10 @@ func (m model) handleConfigPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "Start Policy":
 			m.onlineAutoStart = !m.onlineAutoStart
 		case "Continue":
+			if m.raceClient != nil {
+				m.raceState = onlineConnecting
+				return m, m.configureRaceCmd()
+			}
 			m.raceState = onlineUsername
 		}
 	case "esc":
@@ -352,6 +359,21 @@ func (m model) startRaceCmd() tea.Cmd {
 	}
 }
 
+func (m model) configureRaceCmd() tea.Cmd {
+	return func() tea.Msg {
+		if m.raceClient == nil {
+			return configureRaceResultMsg{err: fmt.Errorf("not connected")}
+		}
+		return configureRaceResultMsg{err: m.raceClient.ConfigureRace(game.RaceConfig{
+			Difficulty: m.difficulty,
+			Mode:       m.mode,
+			Lang:       m.lang,
+			Duration:   m.duration,
+			AutoStart:  m.onlineAutoStart,
+		})}
+	}
+}
+
 func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 	if m.raceClient == nil {
 		return m, nil
@@ -391,6 +413,8 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 		switch payload.State {
 		case "countdown":
 			m.raceState = onlineCountdown
+			m.pickingOnline = true
+			m.active = screenTyping
 		case "racing":
 			m.raceText = payload.Text
 			m.game.Reset(m.mode, m.lang, m.difficulty)
@@ -401,6 +425,8 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 			m.pickingOnline = false
 		default:
 			m.raceState = onlineLobby
+			m.pickingOnline = true
+			m.active = screenTyping
 		}
 
 	case "countdown":
@@ -456,7 +482,7 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 		m.raceState = onlineResults
 		m.active = screenResults
 		m.finishedAt = time.Now()
-		return m, tea.Tick(4*time.Second, func(time.Time) tea.Msg { return onlineResultsDoneMsg{} })
+		return m, nil
 
 	case "online":
 		var payload game.OnlinePayload
@@ -491,6 +517,18 @@ func (m model) handleStartRaceResult(msg startRaceResultMsg) (model, tea.Cmd) {
 		m.msgTime = time.Now()
 	}
 	return m, nil
+}
+
+func (m model) handleConfigureRaceResult(msg configureRaceResultMsg) (model, tea.Cmd) {
+	if msg.err != nil {
+		m.message = msg.err.Error()
+		m.msgTime = time.Now()
+		m.raceState = onlineConfigPick
+		return m, nil
+	}
+	m.save()
+	m.active = screenTyping
+	return m, m.listenRaceMsg()
 }
 
 func (m model) viewOnline(p theme.Palette) string {

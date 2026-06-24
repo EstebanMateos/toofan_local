@@ -68,6 +68,14 @@ type OnlinePayload struct {
 	Count int `json:"count"`
 }
 
+type RaceConfig struct {
+	Difficulty string
+	Mode       string
+	Lang       string
+	Duration   int
+	AutoStart  bool
+}
+
 type RaceClient struct {
 	serverURL string
 	room      string
@@ -215,6 +223,42 @@ func (c *RaceClient) StartRace() error {
 			msg = fmt.Sprintf("status %d", resp.StatusCode)
 		}
 		return fmt.Errorf("start failed: %s", msg)
+	}
+	return nil
+}
+
+func (c *RaceClient) ConfigureRace(cfg RaceConfig) error {
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return nil
+	}
+	room := c.room
+	name := c.name
+	c.mu.Unlock()
+
+	body := map[string]interface{}{
+		"name":       name,
+		"room":       room,
+		"difficulty": cfg.Difficulty,
+		"mode":       cfg.Mode,
+		"lang":       cfg.Lang,
+		"duration":   cfg.Duration,
+		"auto_start": cfg.AutoStart,
+	}
+	data, _ := json.Marshal(body)
+	resp, err := c.client.Post(c.serverURL+"/race/configure", "application/json", bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		msg := strings.TrimSpace(string(b))
+		if msg == "" {
+			msg = fmt.Sprintf("status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("configure failed: %s", msg)
 	}
 	return nil
 }

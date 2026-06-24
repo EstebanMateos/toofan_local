@@ -175,6 +175,39 @@ func (r *room) requestStart(name string) error {
 	return nil
 }
 
+func (r *room) configure(name, difficulty, mode, lang string, duration int, autoStart bool) error {
+	r.mu.Lock()
+	if name != r.host {
+		r.mu.Unlock()
+		return fmt.Errorf("only host can configure")
+	}
+	if r.counting {
+		r.mu.Unlock()
+		return fmt.Errorf("race is starting")
+	}
+	r.difficulty = difficulty
+	r.mode = mode
+	r.lang = lang
+	r.duration = duration
+	r.autoStart = autoStart
+	r.started = false
+	r.counting = false
+	r.startTime = time.Time{}
+	r.text = ""
+	for _, p := range r.players {
+		p.progress = 0
+		p.wpm = 0
+		p.finished = false
+	}
+	r.mu.Unlock()
+
+	log.Printf("room=%s configured host=%s mode=%s lang=%s difficulty=%s duration=%ds auto_start=%t",
+		r.id, name, mode, lang, difficulty, duration, autoStart)
+	r.broadcastLobby()
+	r.maybeStart()
+	return nil
+}
+
 func (r *room) startCountdown() {
 	r.mu.Lock()
 	if r.started || r.counting {

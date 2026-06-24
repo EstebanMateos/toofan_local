@@ -221,6 +221,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleJoinResult(msg)
 	case startRaceResultMsg:
 		return m.handleStartRaceResult(msg)
+	case configureRaceResultMsg:
+		return m.handleConfigureRaceResult(msg)
 
 	case onlineResultsDoneMsg:
 		if m.raceState == onlineResults {

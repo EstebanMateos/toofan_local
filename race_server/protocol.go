@@ -67,6 +67,16 @@ type StartRequest struct {
 	Room string `json:"room"`
 }
 
+type ConfigureRequest struct {
+	Name       string `json:"name"`
+	Room       string `json:"room"`
+	Difficulty string `json:"difficulty"`
+	Mode       string `json:"mode"`
+	Lang       string `json:"lang"`
+	Duration   int    `json:"duration"`
+	AutoStart  bool   `json:"auto_start"`
+}
+
 func marshal(msg ServerMsg) []byte {
 	data, _ := json.Marshal(msg)
 	return data
